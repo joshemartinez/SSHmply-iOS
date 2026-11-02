@@ -5,3 +5,4 @@ DerivedData/
 *.ipa
 *.xcresult
 .DS_Store
+dist/

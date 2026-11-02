@@ -14,7 +14,7 @@
   "nameExists": "An item with that name already exists",
   "fileIsBinary": "The file is binary",
   "noKeysYet": "No keys yet. Add one in the Keys tab.",
-  "secretsNoteIos": "Passwords and private keys are stored in the iOS Keychain on this device.",
+  "secretsNoteIos": "Passwords and private keys are stored securely on this device (iOS Keychain when available).",
   "forgetHostKey": "Forget saved fingerprint",
   "hostKeyForgotten": "Fingerprint forgotten",
   "shareDownloaded": "Download and share / save to Files",
