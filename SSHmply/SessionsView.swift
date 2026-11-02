@@ -5,7 +5,6 @@ import SwiftUI
 struct SessionsView: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var sessions: SessionManager
-    @State private var showSnippets = false
 
     private var activeRef: SessionRef? {
         sessions.refs.first { $0.id == sessions.activeId }
@@ -47,9 +46,9 @@ struct SessionsView: View {
         }
         .navigationViewStyle(.stack)
         .preferredColorScheme(store.preferredScheme)
-        .sheet(isPresented: $showSnippets) {
+        .sheet(isPresented: $sessions.snippetsRequested) {
             SnippetPickerSheet { command in
-                showSnippets = false
+                sessions.snippetsRequested = false
                 sessions.runSnippet(command)
             }
             .environmentObject(store)
@@ -90,7 +89,8 @@ struct SessionsView: View {
         if let ref = activeRef {
             if ref.kind == .ssh, let s = sessions.ssh[ref.id] {
                 Menu {
-                    Button { showSnippets = true } label: { Label(store.t("snippetsTitle"), systemImage: "chevron.left.forwardslash.chevron.right") }
+                    Button { s.focus() } label: { Label(store.t("showKeyboard"), systemImage: "keyboard") }
+                    Button { sessions.snippetsRequested = true } label: { Label(store.t("snippetsTitle"), systemImage: "chevron.left.forwardslash.chevron.right") }
                     Button { s.changeZoom(1) } label: { Label(store.t("zoomIn"), systemImage: "textformat.size.larger") }
                     Button { s.changeZoom(-1) } label: { Label(store.t("zoomOut"), systemImage: "textformat.size.smaller") }
                     Button { s.clearScreen() } label: { Label(store.t("clearTerminal"), systemImage: "eraser") }

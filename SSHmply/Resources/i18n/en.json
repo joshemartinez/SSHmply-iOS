@@ -252,5 +252,6 @@
  "keyRemoveDescIos": "The private key will be deleted from this device's Keychain.",
  "keyPastePrivate": "Private key",
  "pasteFromClipboard": "Paste from clipboard",
- "monitoringDescIos": "Shows CPU, RAM and disk of the server in the terminal bar (Linux servers only)."
+ "monitoringDescIos": "Shows CPU, RAM and disk of the server in the terminal bar (Linux servers only).",
+ "showKeyboard": "Show keyboard"
 }

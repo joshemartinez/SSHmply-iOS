@@ -13,6 +13,7 @@ final class SessionManager: ObservableObject {
     @Published private(set) var refs: [SessionRef] = []
     @Published var activeId: String?
     @Published var presented = false
+    @Published var snippetsRequested = false
 
     private(set) var ssh: [String: TerminalSession] = [:]
     private(set) var sftp: [String: SFTPSession] = [:]
@@ -35,6 +36,7 @@ final class SessionManager: ObservableObject {
         let same = refs.filter { $0.hostId == host.id && $0.kind == .ssh }.count
         let title = same > 0 ? "\(host.name) (\(same + 1))" : host.name
         let session = TerminalSession(host: host, title: title, store: store)
+        session.onShowSnippets = { [weak self] in self?.snippetsRequested = true }
         ssh[session.id] = session
         refs.append(SessionRef(id: session.id, kind: .ssh, hostId: host.id))
         activate(session.id)

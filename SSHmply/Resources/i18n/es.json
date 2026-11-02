@@ -252,5 +252,6 @@
  "keyRemoveDescIos": "La llave privada se eliminará del Llavero de este dispositivo.",
  "keyPastePrivate": "Llave privada",
  "pasteFromClipboard": "Pegar del portapapeles",
- "monitoringDescIos": "Muestra CPU, RAM y disco del servidor en la barra de la terminal (solo servidores Linux)."
+ "monitoringDescIos": "Muestra CPU, RAM y disco del servidor en la barra de la terminal (solo servidores Linux).",
+ "showKeyboard": "Mostrar teclado"
 }

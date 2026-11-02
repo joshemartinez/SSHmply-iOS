@@ -252,5 +252,6 @@
  "keyRemoveDescIos": "秘密鍵はこのデバイスのキーチェーンから削除されます。",
  "keyPastePrivate": "秘密鍵",
  "pasteFromClipboard": "クリップボードから貼り付け",
- "monitoringDescIos": "ターミナルバーにサーバーの CPU・メモリ・ディスクを表示します（Linux サーバーのみ）。"
+ "monitoringDescIos": "ターミナルバーにサーバーの CPU・メモリ・ディスクを表示します（Linux サーバーのみ）。",
+ "showKeyboard": "キーボードを表示"
 }

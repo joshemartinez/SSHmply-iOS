@@ -31,7 +31,8 @@
   "keyRemoveDescIos": "The private key will be deleted from this device's Keychain.",
   "keyPastePrivate": "Private key",
   "pasteFromClipboard": "Paste from clipboard",
-  "monitoringDescIos": "Shows CPU, RAM and disk of the server in the terminal bar (Linux servers only)."
+  "monitoringDescIos": "Shows CPU, RAM and disk of the server in the terminal bar (Linux servers only).",
+  "showKeyboard": "Show keyboard"
  },
  "es": {
   "hostKeyChanged": "La huella de {host} ha cambiado. Conexión bloqueada por seguridad (posible ataque de intermediario). Si reinstalaste el servidor, edítalo y olvida su huella guardada.",
@@ -65,7 +66,8 @@
   "keyRemoveDescIos": "La llave privada se eliminará del Llavero de este dispositivo.",
   "keyPastePrivate": "Llave privada",
   "pasteFromClipboard": "Pegar del portapapeles",
-  "monitoringDescIos": "Muestra CPU, RAM y disco del servidor en la barra de la terminal (solo servidores Linux)."
+  "monitoringDescIos": "Muestra CPU, RAM y disco del servidor en la barra de la terminal (solo servidores Linux).",
+  "showKeyboard": "Mostrar teclado"
  },
  "zh": {
   "hostKeyChanged": "{host} 的指纹已更改。出于安全考虑已阻止连接（可能存在中间人攻击）。如果服务器已重装，请编辑服务器并清除已保存的指纹。",
@@ -99,7 +101,8 @@
   "keyRemoveDescIos": "私钥将从此设备的钥匙串中删除。",
   "keyPastePrivate": "私钥",
   "pasteFromClipboard": "从剪贴板粘贴",
-  "monitoringDescIos": "在终端栏显示服务器的 CPU、内存和磁盘（仅限 Linux 服务器）。"
+  "monitoringDescIos": "在终端栏显示服务器的 CPU、内存和磁盘（仅限 Linux 服务器）。",
+  "showKeyboard": "显示键盘"
  },
  "ja": {
   "hostKeyChanged": "{host} のフィンガープリントが変更されました。安全のため接続をブロックしました（中間者攻撃の可能性）。サーバーを再インストールした場合は、サーバーを編集して保存済みのフィンガープリントを削除してください。",
@@ -133,6 +136,7 @@
   "keyRemoveDescIos": "秘密鍵はこのデバイスのキーチェーンから削除されます。",
   "keyPastePrivate": "秘密鍵",
   "pasteFromClipboard": "クリップボードから貼り付け",
-  "monitoringDescIos": "ターミナルバーにサーバーの CPU・メモリ・ディスクを表示します（Linux サーバーのみ）。"
+  "monitoringDescIos": "ターミナルバーにサーバーの CPU・メモリ・ディスクを表示します（Linux サーバーのみ）。",
+  "showKeyboard": "キーボードを表示"
  }
 }

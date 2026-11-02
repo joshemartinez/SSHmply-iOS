@@ -22,6 +22,10 @@ final class TerminalSession: NSObject, ObservableObject, Identifiable, TerminalV
     @Published var endMessage: String?
     @Published var stats: RemoteStats?
     @Published var zoom = 0
+    /// Sticky modifiers toggled from the on-screen key bar.
+    @Published var ctrlActive = false
+    @Published var altActive = false
+    var onShowSnippets: (() -> Void)?
 
     let terminalView: TerminalView
 
@@ -43,6 +47,7 @@ final class TerminalSession: NSObject, ObservableObject, Identifiable, TerminalV
         self.terminalView = TerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
         super.init()
         terminalView.terminalDelegate = self
+        terminalView.inputAccessoryView = KeyBarView(session: self)
         applySettings()
     }
 
@@ -233,6 +238,58 @@ final class TerminalSession: NSObject, ObservableObject, Identifiable, TerminalV
         inputCont?.yield(ByteBuffer(bytes: bytes))
     }
 
+    // MARK: Key bar support
+
+    func toggleCtrl() { ctrlActive.toggle() }
+    func toggleAlt() { altActive.toggle() }
+
+    /// Applies the sticky Ctrl / Alt modifiers to typed input (single characters only).
+    func applyModifiers(_ bytes: [UInt8]) -> [UInt8] {
+        guard ctrlActive || altActive, !bytes.isEmpty else { return bytes }
+        var out = bytes
+        if ctrlActive, out.count == 1 {
+            let b = out[0]
+            if b >= 0x61 && b <= 0x7A { out = [b - 0x60] }          // a-z
+            else if b >= 0x40 && b <= 0x5F { out = [b - 0x40] }      // @ A-Z [ \ ] ^ _
+            else if b == 0x20 { out = [0] }                          // Ctrl+Space
+            else if b == 0x3F { out = [0x7F] }                       // Ctrl+?
+            ctrlActive = false
+        }
+        if altActive {
+            out = [0x1B] + out
+            altActive = false
+        }
+        return out
+    }
+
+    /// Text typed from the key bar (symbols): honours the sticky modifiers.
+    func sendTyped(_ text: String) {
+        sendBytes(applyModifiers(Array(text.utf8)))
+    }
+
+    enum NavKey { case up, down, left, right, home, end, pageUp, pageDown, escape, tab }
+
+    func sendKey(_ key: NavKey) {
+        let app = terminalView.getTerminal().applicationCursor
+        func csi(_ letter: String) -> String { (app ? "\u{1b}O" : "\u{1b}[") + letter }
+        switch key {
+        case .up: sendText(csi("A"))
+        case .down: sendText(csi("B"))
+        case .right: sendText(csi("C"))
+        case .left: sendText(csi("D"))
+        case .home: sendText(csi("H"))
+        case .end: sendText(csi("F"))
+        case .pageUp: sendText("\u{1b}[5~")
+        case .pageDown: sendText("\u{1b}[6~")
+        case .escape: sendBytes([0x1B])
+        case .tab: sendBytes(applyModifiers([0x09]))
+        }
+    }
+
+    func pasteFromClipboard() { terminalView.paste(nil) }
+
+    func hideKeyboard() { _ = terminalView.resignFirstResponder() }
+
     /// Runs a snippet as if typed.
     func run(command: String) {
         sendText(command.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\n", with: "\r") + "\r")
@@ -296,7 +353,7 @@ final class TerminalSession: NSObject, ObservableObject, Identifiable, TerminalV
 
     nonisolated func send(source: TerminalView, data: ArraySlice<UInt8>) {
         let bytes = Array(data)
-        Task { @MainActor in self.sendBytes(bytes) }
+        Task { @MainActor in self.sendBytes(self.applyModifiers(bytes)) }
     }
 
     nonisolated func scrolled(source: TerminalView, position: Double) {}
@@ -326,6 +383,10 @@ struct TerminalHost: UIViewRepresentable {
     @ObservedObject var session: TerminalSession
     var isActive: Bool
 
+    final class Coordinator { var wasActive = false }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
     func makeUIView(context: Context) -> UIView {
         let container = UIView()
         container.backgroundColor = .clear
@@ -335,12 +396,16 @@ struct TerminalHost: UIViewRepresentable {
 
     func updateUIView(_ container: UIView, context: Context) {
         if session.terminalView.superview !== container { attach(session.terminalView, to: container) }
-        if isActive {
+        // Focus (and therefore show the keyboard) only when the session becomes active, never on every
+        // refresh: otherwise the keyboard would come back right after the user hides it.
+        let becameActive = isActive && !context.coordinator.wasActive
+        context.coordinator.wasActive = isActive
+        if becameActive {
             DispatchQueue.main.async {
                 session.startIfNeeded()
-                if !session.terminalView.isFirstResponder { session.focus() }
+                session.focus()
             }
-        } else if session.terminalView.isFirstResponder {
+        } else if !isActive, session.terminalView.isFirstResponder {
             session.blur()
         }
     }

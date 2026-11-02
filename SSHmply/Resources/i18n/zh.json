@@ -252,5 +252,6 @@
  "keyRemoveDescIos": "私钥将从此设备的钥匙串中删除。",
  "keyPastePrivate": "私钥",
  "pasteFromClipboard": "从剪贴板粘贴",
- "monitoringDescIos": "在终端栏显示服务器的 CPU、内存和磁盘（仅限 Linux 服务器）。"
+ "monitoringDescIos": "在终端栏显示服务器的 CPU、内存和磁盘（仅限 Linux 服务器）。",
+ "showKeyboard": "显示键盘"
 }
