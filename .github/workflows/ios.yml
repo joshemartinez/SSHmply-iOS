@@ -1,0 +1,134 @@
+name: iOS build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select newest Xcode
+        run: |
+          ls /Applications | grep -i xcode || true
+          NEWEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -n 1)
+          if [ -n "$NEWEST" ]; then sudo xcode-select -s "$NEWEST/Contents/Developer"; fi
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          xcrun simctl list runtimes
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Resolve packages
+        run: xcodebuild -resolvePackageDependencies -project SSHmply.xcodeproj -scheme SSHmply
+
+      - name: Build for iOS Simulator
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project SSHmply.xcodeproj -scheme SSHmply \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug CODE_SIGNING_ALLOWED=NO \
+            -derivedDataPath build/sim 2>&1 | tee build-sim.log | grep -E "error:|warning: .*deprecated|BUILD|Compiling|Linking" | tail -n 80
+
+      - name: Build for iPhone (unsigned) and package IPA
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project SSHmply.xcodeproj -scheme SSHmply \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -configuration Release CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            -derivedDataPath build/device 2>&1 | tee build-device.log | grep -E "error:|BUILD" | tail -n 40
+          APP=$(find build/device/Build/Products -name "SSHmply.app" -maxdepth 3 | head -n 1)
+          echo "APP=$APP"
+          rm -rf Payload && mkdir Payload && cp -R "$APP" Payload/
+          zip -qry SSHmply-unsigned.ipa Payload
+          ls -la SSHmply-unsigned.ipa
+          # Report the minimum OS the binary was built for.
+          /usr/libexec/PlistBuddy -c "Print :MinimumOSVersion" "$APP/Info.plist"
+          lipo -info "$APP/SSHmply"
+
+      - name: Start local sshd for end-to-end tests
+        run: |
+          set -e
+          mkdir -p "$HOME/e2e" && cd "$HOME/e2e"
+          ssh-keygen -q -t ed25519 -N "" -f host_ed25519
+          ssh-keygen -q -t ed25519 -N "" -f client_ed25519 -C e2e
+          ssh-keygen -q -t rsa -b 2048 -m PEM -N "" -f client_rsa_pem -C e2e-rsa
+          ssh-keygen -q -t rsa -b 2048 -N "" -f client_rsa -C e2e-rsa2
+          cat client_ed25519.pub client_rsa.pub > authorized_keys
+          chmod 600 authorized_keys client_* host_ed25519
+          cat > sshd_config <<EOF
+          Port 2222
+          ListenAddress 127.0.0.1
+          HostKey $HOME/e2e/host_ed25519
+          PidFile $HOME/e2e/sshd.pid
+          AuthorizedKeysFile $HOME/e2e/authorized_keys
+          PasswordAuthentication no
+          PubkeyAuthentication yes
+          PubkeyAcceptedAlgorithms +ssh-rsa
+          StrictModes no
+          UsePAM no
+          Subsystem sftp /usr/libexec/sftp-server
+          EOF
+          /usr/sbin/sshd -f "$HOME/e2e/sshd_config" -E "$HOME/e2e/sshd.log"
+          sleep 1
+          ssh -p 2222 -i client_ed25519 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$USER@127.0.0.1" 'echo sshd-ok'
+          echo "E2E_USER=$USER" >> "$GITHUB_ENV"
+          echo "E2E_KEY=$HOME/e2e/client_ed25519" >> "$GITHUB_ENV"
+          echo "E2E_RSA_KEY=$HOME/e2e/client_rsa" >> "$GITHUB_ENV"
+
+      - name: Run tests on an iPhone simulator
+        run: |
+          set -o pipefail
+          DEVICE=$(xcrun simctl list devices available | grep -E "iPhone" | head -n 1 | sed -E 's/^ *(.*) \(([0-9A-F-]+)\).*/\2/')
+          echo "Using simulator $DEVICE"
+          xcrun simctl boot "$DEVICE" || true
+          printf '%s' "$E2E_USER" > /tmp/e2e_user.txt
+          cp "$E2E_KEY" /tmp/e2e_key.txt
+          cp "$E2E_RSA_KEY" /tmp/e2e_rsa_key.txt
+          cp "$E2E_KEY.pub" /tmp/e2e_key.txt.pub
+          printf '%s' "$HOME/e2e/authorized_keys" > /tmp/e2e_authkeys_path.txt
+          xcodebuild test \
+            -project SSHmply.xcodeproj -scheme SSHmply \
+            -destination "platform=iOS Simulator,id=$DEVICE" \
+            -configuration Debug CODE_SIGNING_ALLOWED=NO \
+            -derivedDataPath build/test -resultBundlePath build/tests.xcresult 2>&1 | tee build-test.log | grep -E "error:|Test Case|Executed|TEST|failed" | tail -n 80
+
+      - name: Launch the app on the simulator and take a screenshot
+        if: always()
+        run: |
+          DEVICE=$(xcrun simctl list devices available | grep -E "iPhone" | head -n 1 | sed -E 's/^ *(.*) \(([0-9A-F-]+)\).*/\2/')
+          xcrun simctl boot "$DEVICE" || true
+          APP=$(find build/sim/Build/Products -name "SSHmply.app" -maxdepth 3 | head -n 1)
+          xcrun simctl install "$DEVICE" "$APP"
+          xcrun simctl launch "$DEVICE" com.sshmply.app
+          sleep 6
+          xcrun simctl io "$DEVICE" screenshot screenshot-launch.png
+          xcrun simctl spawn "$DEVICE" launchctl list | grep sshmply || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sshmply-ios
+          if-no-files-found: warn
+          path: |
+            SSHmply-unsigned.ipa
+            screenshot-launch.png
+            build-*.log
+            build/tests.xcresult
+            ~/e2e/sshd.log
