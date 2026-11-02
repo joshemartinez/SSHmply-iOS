@@ -120,7 +120,7 @@ struct HostEditorView: View {
                     store.forgetHostKey(host: draft.hostname.trimmingCharacters(in: .whitespaces), port: Int(portText) ?? 22)
                     store.showToast(store.t("hostKeyForgotten"), .success)
                 } label: {
-                    Label(store.t("forgetHostKey"), systemImage: "fingerprint")
+                    Label(store.t("forgetHostKey"), systemImage: "touchid")
                 }
                 .buttonStyle(SecondaryButtonStyle(pal: store.pal, compact: true))
             }
