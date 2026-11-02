@@ -38,7 +38,7 @@ jobs:
       - name: Build for iOS Simulator
         run: |
           set -o pipefail
-          xcodebuild build \
+          xcodebuild build -skipPackagePluginValidation -skipMacroValidation \
             -project SSHmply.xcodeproj -scheme SSHmply \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
             -configuration Debug CODE_SIGNING_ALLOWED=NO \
@@ -47,7 +47,7 @@ jobs:
       - name: Build for iPhone (unsigned) and package IPA
         run: |
           set -o pipefail
-          xcodebuild build \
+          xcodebuild build -skipPackagePluginValidation -skipMacroValidation \
             -project SSHmply.xcodeproj -scheme SSHmply \
             -sdk iphoneos -destination 'generic/platform=iOS' \
             -configuration Release CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
@@ -102,7 +102,7 @@ jobs:
           cp "$E2E_RSA_KEY" /tmp/e2e_rsa_key.txt
           cp "$E2E_KEY.pub" /tmp/e2e_key.txt.pub
           printf '%s' "$HOME/e2e/authorized_keys" > /tmp/e2e_authkeys_path.txt
-          xcodebuild test \
+          xcodebuild test -skipPackagePluginValidation -skipMacroValidation \
             -project SSHmply.xcodeproj -scheme SSHmply \
             -destination "platform=iOS Simulator,id=$DEVICE" \
             -configuration Debug CODE_SIGNING_ALLOWED=NO \
