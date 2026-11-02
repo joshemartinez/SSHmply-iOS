@@ -95,10 +95,6 @@ targets:
       - path: SSHmplyTests
     dependencies:
       - target: SSHmply
-      - package: Citadel
-        product: Citadel
-      - package: swift-nio
-        product: NIOCore
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sshmply.app.tests

@@ -1,6 +1,4 @@
 import XCTest
-import Citadel
-import NIOCore
 @testable import SSHmply
 
 /// End-to-end tests against a throw-away local sshd started by the CI workflow
@@ -30,19 +28,15 @@ final class E2ETests: XCTestCase {
     func testEd25519KeyAuthAndExec() async throws {
         let store = makeStore()
         let h = try host(store: store, keyFile: "/tmp/e2e_key.txt", name: "ed25519")
-        let client = try await SSHFactory.connect(host: h, store: store)
-        let out = try await client.executeCommand("echo hello-$((6*7))")
-        XCTAssertEqual(String(buffer: out).trimmingCharacters(in: .whitespacesAndNewlines), "hello-42")
-        try await client.close()
+        let out = try await SSHFactory.exec(host: h, store: store, command: "echo hello-$((6*7))")
+        XCTAssertEqual(out.trimmingCharacters(in: .whitespacesAndNewlines), "hello-42")
     }
 
     func testRSAKeyAuth() async throws {
         let store = makeStore()
         let h = try host(store: store, keyFile: "/tmp/e2e_rsa_key.txt", name: "rsa")
-        let client = try await SSHFactory.connect(host: h, store: store)
-        let out = try await client.executeCommand("echo rsa-ok")
-        XCTAssertEqual(String(buffer: out).trimmingCharacters(in: .whitespacesAndNewlines), "rsa-ok")
-        try await client.close()
+        let out = try await SSHFactory.exec(host: h, store: store, command: "echo rsa-ok")
+        XCTAssertEqual(out.trimmingCharacters(in: .whitespacesAndNewlines), "rsa-ok")
     }
 
     func testGeneratedKeyCanAuthenticate() async throws {
@@ -57,10 +51,8 @@ final class E2ETests: XCTestCase {
         let info = SSHKeyInfo(name: "gen", keyType: "ed25519", publicKey: generated.publicLine)
         store.addKey(info, privateKey: generated.privateKey)
         let h = Host(name: "gen", hostname: "127.0.0.1", port: 2222, username: user, authType: .key, keyId: info.id)
-        let client = try await SSHFactory.connect(host: h, store: store)
-        let out = try await client.executeCommand("echo gen-ok")
-        XCTAssertEqual(String(buffer: out).trimmingCharacters(in: .whitespacesAndNewlines), "gen-ok")
-        try await client.close()
+        let out = try await SSHFactory.exec(host: h, store: store, command: "echo gen-ok")
+        XCTAssertEqual(out.trimmingCharacters(in: .whitespacesAndNewlines), "gen-ok")
     }
 
     func testPublicKeyLineMatchesSshKeygen() throws {

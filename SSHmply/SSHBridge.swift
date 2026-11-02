@@ -78,6 +78,20 @@ enum SSHFactory {
         }
     }
 
+    /// Connects, runs one command and returns its stdout (used by tests and diagnostics).
+    @MainActor
+    static func exec(host: Host, store: AppStore, command: String) async throws -> String {
+        let client = try await connect(host: host, store: store)
+        do {
+            let out = try await client.executeCommand(command)
+            try? await client.close()
+            return String(buffer: out)
+        } catch {
+            try? await client.close()
+            throw error
+        }
+    }
+
     @MainActor
     private static func authMethod(for host: Host, store: AppStore) throws -> SSHAuthenticationMethod {
         let user = host.username.trimmingCharacters(in: .whitespaces)
