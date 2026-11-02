@@ -93,7 +93,7 @@ enum SSHFactory {
         }
     }
 
-    static func describe(_ error: Error, host: Host, store: AppStore) -> String {
+    @MainActor static func describe(_ error: Error, host: Host, store: AppStore) -> String {
         let text = String(describing: error)
         let lower = text.lowercased()
         if lower.contains("allauthenticationoptionsfailed") || lower.contains("authentication") || lower.contains("unsupportedpassword")
