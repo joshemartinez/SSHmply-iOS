@@ -214,12 +214,11 @@ struct SheetScaffold<Content: View>: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(store.t(onSave == nil ? "close" : "cancel")) { presentation.wrappedValue.dismiss() }
                 }
-                if let onSave {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button(saveLabel ?? store.t("save")) { onSave() }
-                            .font(.system(size: 17, weight: .semibold))
-                            .disabled(!saveEnabled)
-                    }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(saveLabel ?? store.t("save")) { onSave?() }
+                        .font(.system(size: 17, weight: .semibold))
+                        .disabled(onSave == nil || !saveEnabled)
+                        .opacity(onSave == nil ? 0 : 1)
                 }
             }
         }
