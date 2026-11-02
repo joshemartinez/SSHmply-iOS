@@ -10,7 +10,7 @@ enum SessionKind { case ssh, sftp }
 
 /// One live SSH shell. Owns the SwiftTerm view so the scrollback survives navigation.
 @MainActor
-final class TerminalSession: NSObject, ObservableObject, Identifiable, TerminalViewDelegate {
+final class TerminalSession: NSObject, ObservableObject, Identifiable, TerminalViewDelegate, UIGestureRecognizerDelegate {
     enum Phase { case connecting, live, ended }
 
     let id = uid("ssh")
@@ -48,6 +48,7 @@ final class TerminalSession: NSObject, ObservableObject, Identifiable, TerminalV
         super.init()
         terminalView.terminalDelegate = self
         terminalView.inputAccessoryView = KeyBarView(session: self)
+        installWheelScroll()
         applySettings()
     }
 
@@ -238,6 +239,91 @@ final class TerminalSession: NSObject, ObservableObject, Identifiable, TerminalV
         inputCont?.yield(ByteBuffer(bytes: bytes))
     }
 
+    // MARK: Wheel scrolling for full-screen apps (opencode, claude, vim, less, htop...)
+
+    /// True while the running program wants the wheel: it enabled mouse tracking or uses the alternate screen.
+    /// In a plain shell the native scroll view scrolls the scrollback and this gesture stays out of the way.
+    var wantsWheelScroll: Bool {
+        let t = terminalView.getTerminal()
+        return t.mouseMode != .off || t.isCurrentBufferAlternate
+    }
+
+    private var scrollAccum: CGFloat = 0
+    private var inertiaTimer: Timer?
+    private var inertiaVelocity: CGFloat = 0
+
+    private func installWheelScroll() {
+        let pan = TerminalScrollPan(target: self, action: #selector(handleScrollPan(_:)))
+        pan.session = self
+        pan.delegate = self
+        pan.maximumNumberOfTouches = 1
+        terminalView.addGestureRecognizer(pan)
+    }
+
+    private var wheelStep: CGFloat { max(12, terminalView.font.lineHeight * 1.4) }
+
+    func stopInertia() {
+        inertiaTimer?.invalidate()
+        inertiaTimer = nil
+    }
+
+    private func emitWheel(_ delta: CGFloat) {
+        scrollAccum += delta
+        let step = wheelStep
+        while abs(scrollAccum) >= step {
+            // Finger moving down = content moving down = wheel up.
+            sendWheel(up: scrollAccum > 0)
+            scrollAccum += scrollAccum > 0 ? -step : step
+        }
+    }
+
+    private func sendWheel(up: Bool) {
+        let t = terminalView.getTerminal()
+        if t.mouseMode != .off {
+            let flags = t.encodeButton(button: up ? 4 : 5, release: false, shift: false, meta: false, control: false)
+            t.sendEvent(buttonFlags: flags, x: max(0, t.cols / 2), y: max(0, t.rows / 2))
+        } else if t.isCurrentBufferAlternate {
+            sendKey(up ? .up : .down)
+        }
+    }
+
+    @objc private func handleScrollPan(_ g: UIPanGestureRecognizer) {
+        switch g.state {
+        case .began:
+            stopInertia()
+            scrollAccum = 0
+            g.setTranslation(.zero, in: terminalView)
+        case .changed:
+            let dy = g.translation(in: terminalView).y
+            g.setTranslation(.zero, in: terminalView)
+            emitWheel(dy)
+        case .ended:
+            inertiaVelocity = g.velocity(in: terminalView).y
+            guard abs(inertiaVelocity) > 120 else { return }
+            inertiaTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] timer in
+                guard let self else { timer.invalidate(); return }
+                self.inertiaVelocity *= 0.94
+                if abs(self.inertiaVelocity) < 40 || !self.wantsWheelScroll {
+                    self.stopInertia()
+                    return
+                }
+                self.emitWheel(self.inertiaVelocity / 60.0)
+            }
+        default:
+            break
+        }
+    }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let pan = gestureRecognizer as? UIPanGestureRecognizer, wantsWheelScroll else { return false }
+        let v = pan.velocity(in: terminalView)
+        return abs(v.y) >= abs(v.x)
+    }
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        true
+    }
+
     // MARK: Key bar support
 
     func toggleCtrl() { ctrlActive.toggle() }
@@ -420,5 +506,51 @@ struct TerminalHost: UIViewRepresentable {
             tv.topAnchor.constraint(equalTo: container.topAnchor),
             tv.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
+    }
+}
+
+
+/// One-finger pan that turns vertical drags into mouse-wheel events for full-screen terminal apps.
+/// While a touch is down it switches SwiftTerm's own mouse reporting off, so the same drag is not also
+/// sent to the app as a click-drag (which opencode / claude interpret as text selection).
+final class TerminalScrollPan: UIPanGestureRecognizer {
+    weak var session: TerminalSession?
+    private var suppressed = false
+    private var previousAllow = true
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        if let session, session.wantsWheelScroll {
+            session.stopInertia()
+            let view = session.terminalView
+            previousAllow = view.allowMouseReporting
+            view.allowMouseReporting = false
+            suppressed = true
+        }
+        super.touchesBegan(touches, with: event)
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        super.touchesEnded(touches, with: event)
+        restore()
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+        super.touchesCancelled(touches, with: event)
+        restore()
+    }
+
+    override func reset() {
+        super.reset()
+        restore()
+    }
+
+    private func restore() {
+        guard suppressed else { return }
+        suppressed = false
+        let allow = previousAllow
+        // Deferred one turn so SwiftTerm's own end-of-gesture callbacks still see reporting disabled.
+        DispatchQueue.main.async { [weak self] in
+            self?.session?.terminalView.allowMouseReporting = allow
+        }
     }
 }
