@@ -33,7 +33,7 @@ jobs:
         run: xcodegen generate
 
       - name: Resolve packages
-        run: xcodebuild -resolvePackageDependencies -project SSHmply.xcodeproj -scheme SSHmply
+        run: xcodebuild -resolvePackageDependencies -skipPackagePluginValidation -skipMacroValidation -project SSHmply.xcodeproj -scheme SSHmply
 
       - name: Build for iOS Simulator
         run: |
