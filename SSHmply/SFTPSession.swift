@@ -127,7 +127,7 @@ final class SFTPSession: ObservableObject, Identifiable {
 
     func refresh() async { await list(path, pushHistory: false) }
 
-    static func modeString(_ mode: UInt32, isDir: Bool, isLink: Bool) -> String {
+    nonisolated static func modeString(_ mode: UInt32, isDir: Bool, isLink: Bool) -> String {
         var s = isLink ? "l" : (isDir ? "d" : "-")
         for shift in [6, 3, 0] as [UInt32] {
             let bits = (mode >> shift) & 0o7
@@ -138,7 +138,7 @@ final class SFTPSession: ObservableObject, Identifiable {
         return s
     }
 
-    static func message(_ error: Error) -> String {
+    nonisolated static func message(_ error: Error) -> String {
         if let e = error as? AppError { return e.message }
         let text = String(describing: error)
         if text.lowercased().contains("permission") { return "Permission denied" }
@@ -212,14 +212,14 @@ final class SFTPSession: ObservableObject, Identifiable {
 
     // MARK: Transfers
 
-    static var downloadsDirectory: URL {
+    nonisolated static var downloadsDirectory: URL {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let dir = docs.appendingPathComponent("Downloads", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }
 
-    static func uniqueURL(in dir: URL, name: String) -> URL {
+    nonisolated static func uniqueURL(in dir: URL, name: String) -> URL {
         let fm = FileManager.default
         let first = dir.appendingPathComponent(name)
         if !fm.fileExists(atPath: first.path) { return first }
