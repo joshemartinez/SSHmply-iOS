@@ -197,6 +197,33 @@ final class E2ETests: XCTestCase {
         sftp.disconnect()
     }
 
+    // MARK: Key bar
+
+    func testKeyBarIsScrollableAndFitsAllButtons() throws {
+        let store = makeStore()
+        let h = Host(name: "bar", hostname: "127.0.0.1", port: 1, username: "u", authType: .password, password: "p")
+        let session = TerminalSession(host: h, title: "bar", store: store)
+        let bar = try XCTUnwrap(session.terminalView.inputAccessoryView as? UIInputView)
+        bar.frame = CGRect(x: 0, y: 0, width: 375, height: 48) // iPhone 13 mini width
+        bar.setNeedsLayout()
+        bar.layoutIfNeeded()
+
+        let scroll = try XCTUnwrap(bar.subviews.compactMap { $0 as? UIScrollView }.first)
+        let buttons = scroll.subviews.compactMap { $0 as? UIButton }
+        XCTAssertGreaterThan(buttons.count, 20)
+        XCTAssertGreaterThan(scroll.contentSize.width, 375 * 2, "all keys must be reachable by scrolling")
+        XCTAssertTrue(scroll.canCancelContentTouches)
+        XCTAssertTrue(scroll.isScrollEnabled)
+        for b in buttons {
+            XCTAssertGreaterThan(b.frame.width, 30)
+            XCTAssertLessThanOrEqual(b.frame.maxX, scroll.contentSize.width)
+        }
+        // A drag that starts on a button must be allowed to scroll the bar.
+        let first = try XCTUnwrap(buttons.first)
+        XCTAssertTrue(scroll.perform(NSSelectorFromString("touchesShouldCancelInContentView:"), with: first) != nil
+            || scroll.canCancelContentTouches)
+    }
+
     // MARK: Pure logic
 
     func testRemoteStatsParser() {

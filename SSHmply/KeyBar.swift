@@ -1,12 +1,24 @@
 import UIKit
 import Combine
 
+/// Scroll view that lets a drag that starts on a button scroll the bar (buttons are UIControls,
+/// which by default swallow the gesture).
+private final class KeyScrollView: UIScrollView {
+    override func touchesShouldCancel(in view: UIView) -> Bool { true }
+}
+
 /// Termius-style key row shown above the software keyboard (and only while the keyboard is up).
-/// Glass buttons on iOS 26, tinted capsules before that.
+/// Glass buttons on iOS 26, tinted capsules before that. Horizontally scrollable.
 final class KeyBarView: UIInputView {
+    private static let barHeight: CGFloat = 48
+    private static let buttonHeight: CGFloat = 36
+    private static let spacing: CGFloat = 6
+    private static let edge: CGFloat = 8
+
     private weak var session: TerminalSession?
-    private let scroll = UIScrollView()
-    private let stack = UIStackView()
+    private let scroll = KeyScrollView()
+    private var buttons: [UIButton] = []
+    private var fixedWidths: [ObjectIdentifier: CGFloat] = [:]
     private var ctrlButton: UIButton?
     private var altButton: UIButton?
     private var repeatTimer: Timer?
@@ -16,8 +28,17 @@ final class KeyBarView: UIInputView {
     @MainActor
     init(session: TerminalSession) {
         self.session = session
-        super.init(frame: CGRect(x: 0, y: 0, width: 320, height: 48), inputViewStyle: .keyboard)
+        super.init(frame: CGRect(x: 0, y: 0, width: 320, height: Self.barHeight), inputViewStyle: .keyboard)
         allowsSelfSizing = true
+
+        scroll.showsHorizontalScrollIndicator = false
+        scroll.showsVerticalScrollIndicator = false
+        scroll.alwaysBounceHorizontal = true
+        scroll.alwaysBounceVertical = false
+        scroll.canCancelContentTouches = true
+        scroll.clipsToBounds = true
+        addSubview(scroll)
+
         build()
         session.$ctrlActive.receive(on: DispatchQueue.main).sink { [weak self] on in self?.ctrlButton?.isSelected = on }.store(in: &cancellables)
         session.$altActive.receive(on: DispatchQueue.main).sink { [weak self] on in self?.altButton?.isSelected = on }.store(in: &cancellables)
@@ -26,38 +47,30 @@ final class KeyBarView: UIInputView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override var intrinsicContentSize: CGSize {
-        CGSize(width: UIView.noIntrinsicMetric, height: 48)
+        CGSize(width: UIView.noIntrinsicMetric, height: Self.barHeight)
     }
 
     deinit { repeatTimer?.invalidate() }
 
-    // MARK: Layout
+    // MARK: Layout (manual frames: deterministic inside the keyboard's input view)
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        scroll.frame = bounds
+        let y = (bounds.height - Self.buttonHeight) / 2
+        var x = Self.edge
+        for button in buttons {
+            let natural = button.intrinsicContentSize.width
+            let width = fixedWidths[ObjectIdentifier(button)] ?? max(40, natural)
+            button.frame = CGRect(x: x, y: y, width: width, height: Self.buttonHeight)
+            x += width + Self.spacing
+        }
+        scroll.contentSize = CGSize(width: x - Self.spacing + Self.edge, height: bounds.height)
+    }
+
+    // MARK: Buttons
 
     private func build() {
-        scroll.showsHorizontalScrollIndicator = false
-        scroll.alwaysBounceHorizontal = true
-        scroll.delaysContentTouches = false
-        scroll.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(scroll)
-
-        stack.axis = .horizontal
-        stack.spacing = 6
-        stack.alignment = .center
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        scroll.addSubview(stack)
-
-        NSLayoutConstraint.activate([
-            scroll.leadingAnchor.constraint(equalTo: leadingAnchor),
-            scroll.trailingAnchor.constraint(equalTo: trailingAnchor),
-            scroll.topAnchor.constraint(equalTo: topAnchor),
-            scroll.bottomAnchor.constraint(equalTo: bottomAnchor),
-            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 8),
-            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -8),
-            stack.centerYAnchor.constraint(equalTo: scroll.frameLayoutGuide.centerYAnchor),
-            stack.heightAnchor.constraint(equalToConstant: 36),
-            scroll.contentLayoutGuide.heightAnchor.constraint(equalTo: scroll.frameLayoutGuide.heightAnchor),
-        ])
-
         // Hide keyboard · Esc · Tab · Ctrl · Alt · arrows · symbols · navigation · snippets · paste
         add(symbol: "keyboard.chevron.compact.down") { [weak self] in self?.session?.hideKeyboard() }
         add(title: "esc") { [weak self] in self?.session?.sendKey(.escape) }
@@ -69,7 +82,7 @@ final class KeyBarView: UIInputView {
         add(symbol: "arrow.up", repeating: true) { [weak self] in self?.session?.sendKey(.up) }
         add(symbol: "arrow.right", repeating: true) { [weak self] in self?.session?.sendKey(.right) }
         for sym in ["|", "/", "~", "-", "_", ".", ":", "$", "&", "*", "\\", "'", "\""] {
-            add(title: sym, width: 38) { [weak self] in self?.session?.sendTyped(sym) }
+            add(title: sym, width: 40) { [weak self] in self?.session?.sendTyped(sym) }
         }
         add(title: "home") { [weak self] in self?.session?.sendKey(.home) }
         add(title: "end") { [weak self] in self?.session?.sendKey(.end) }
@@ -83,7 +96,7 @@ final class KeyBarView: UIInputView {
     private func add(title: String? = nil, symbol: String? = nil, width: CGFloat? = nil, toggle: Bool = false,
                      repeating: Bool = false, action: @escaping () -> Void) -> UIButton {
         let button = makeButton(title: title, symbol: symbol, toggle: toggle)
-        if let width { button.widthAnchor.constraint(equalToConstant: width).isActive = true }
+        if let width { fixedWidths[ObjectIdentifier(button)] = width }
 
         if repeating {
             button.addAction(UIAction { [weak self] _ in self?.startRepeat(action) }, for: .touchDown)
@@ -96,7 +109,8 @@ final class KeyBarView: UIInputView {
                 action()
             }, for: .touchUpInside)
         }
-        stack.addArrangedSubview(button)
+        buttons.append(button)
+        scroll.addSubview(button)
         return button
     }
 
@@ -119,8 +133,6 @@ final class KeyBarView: UIInputView {
             config.image = UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .medium))
         }
         let button = UIButton(configuration: config)
-        button.heightAnchor.constraint(equalToConstant: 36).isActive = true
-        button.widthAnchor.constraint(greaterThanOrEqualToConstant: 40).isActive = true
         if toggle {
             button.configurationUpdateHandler = { btn in
                 var c = btn.configuration
