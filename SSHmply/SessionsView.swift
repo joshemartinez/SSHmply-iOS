@@ -1,39 +1,51 @@
 import SwiftUI
 
-/// Full-screen container: a strip with every open session plus the active session's content.
+/// Full-screen container for every open session. A native navigation bar (Liquid Glass on iOS 26)
+/// holds the session switcher and the actions menu.
 struct SessionsView: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var sessions: SessionManager
     @State private var showSnippets = false
 
+    private var activeRef: SessionRef? {
+        sessions.refs.first { $0.id == sessions.activeId }
+    }
+
     var body: some View {
-        ZStack {
-            store.pal.window.ignoresSafeArea()
-            VStack(spacing: 0) {
-                topStrip
-                ZStack {
-                    ForEach(sessions.refs) { ref in
-                        let active = ref.id == sessions.activeId
-                        Group {
-                            switch ref.kind {
-                            case .ssh:
-                                if let s = sessions.ssh[ref.id] {
-                                    TerminalScreen(session: s, isActive: active && sessions.presented, onSnippets: { showSnippets = true })
-                                }
-                            case .sftp:
-                                if let s = sessions.sftp[ref.id] {
-                                    SFTPScreen(session: s)
-                                }
+        NavigationView {
+            ZStack {
+                store.pal.terminalBg.ignoresSafeArea()
+                ForEach(sessions.refs) { ref in
+                    let active = ref.id == sessions.activeId
+                    Group {
+                        switch ref.kind {
+                        case .ssh:
+                            if let s = sessions.ssh[ref.id] {
+                                TerminalScreen(session: s, isActive: active && sessions.presented)
+                            }
+                        case .sftp:
+                            if let s = sessions.sftp[ref.id] {
+                                SFTPScreen(session: s)
                             }
                         }
-                        .opacity(active ? 1 : 0)
-                        .allowsHitTesting(active)
-                        .zIndex(active ? 1 : 0)
                     }
+                    .opacity(active ? 1 : 0)
+                    .allowsHitTesting(active)
+                    .zIndex(active ? 1 : 0)
                 }
+                ToastView().zIndex(5)
             }
-            ToastView()
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button { sessions.presented = false } label: { Image(systemName: "chevron.down") }
+                        .accessibilityLabel(store.t("backToList"))
+                }
+                ToolbarItem(placement: .principal) { switcher }
+                ToolbarItem(placement: .navigationBarTrailing) { actions }
+            }
         }
+        .navigationViewStyle(.stack)
         .preferredColorScheme(store.preferredScheme)
         .sheet(isPresented: $showSnippets) {
             SnippetPickerSheet { command in
@@ -44,51 +56,57 @@ struct SessionsView: View {
         }
     }
 
-    private var topStrip: some View {
-        HStack(spacing: 8) {
-            Button {
-                sessions.presented = false
-            } label: {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(store.pal.textPrimary)
-                    .frame(width: 38, height: 38)
-                    .background(store.pal.input)
-                    .clipShape(Circle())
-            }
-            .accessibilityLabel(store.t("backToList"))
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(sessions.refs) { ref in
-                        let active = ref.id == sessions.activeId
-                        HStack(spacing: 6) {
-                            Image(systemName: ref.kind == .ssh ? "terminal" : "folder").font(.system(size: 12))
-                            Text(sessions.title(for: ref)).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                            Button {
-                                sessions.close(ref.id)
-                            } label: {
-                                Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
-                                    .frame(width: 22, height: 22)
-                                    .contentShape(Rectangle())
-                            }
-                            .accessibilityLabel(store.t("closeTab"))
-                        }
-                        .foregroundColor(active ? store.pal.accent : store.pal.textSecondary)
-                        .padding(.leading, 10)
-                        .padding(.trailing, 4)
-                        .frame(height: 34)
-                        .background(active ? store.pal.accentSoft : store.pal.input)
-                        .clipShape(Capsule())
-                        .onTapGesture { sessions.activeId = ref.id }
+    private var switcher: some View {
+        Menu {
+            ForEach(sessions.refs) { ref in
+                Button {
+                    sessions.activeId = ref.id
+                } label: {
+                    if ref.id == sessions.activeId {
+                        Label(sessions.title(for: ref), systemImage: "checkmark")
+                    } else {
+                        Text(sessions.title(for: ref))
                     }
                 }
             }
+        } label: {
+            HStack(spacing: 4) {
+                Text(activeRef.map { sessions.title(for: $0) } ?? "")
+                    .font(.headline)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                if sessions.refs.count > 1 {
+                    Image(systemName: "chevron.down").font(.caption.weight(.bold))
+                }
+            }
+            .foregroundColor(.primary)
+            .frame(maxWidth: 190)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(store.pal.sidebar.ignoresSafeArea(edges: .top))
-        .overlay(Rectangle().fill(store.pal.border).frame(height: 1), alignment: .bottom)
+        .disabled(sessions.refs.count < 2)
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        if let ref = activeRef {
+            if ref.kind == .ssh, let s = sessions.ssh[ref.id] {
+                Menu {
+                    Button { showSnippets = true } label: { Label(store.t("snippetsTitle"), systemImage: "chevron.left.forwardslash.chevron.right") }
+                    Button { s.changeZoom(1) } label: { Label(store.t("zoomIn"), systemImage: "textformat.size.larger") }
+                    Button { s.changeZoom(-1) } label: { Label(store.t("zoomOut"), systemImage: "textformat.size.smaller") }
+                    Button { s.clearScreen() } label: { Label(store.t("clearTerminal"), systemImage: "eraser") }
+                    if s.phase == .ended {
+                        Button { s.reconnect() } label: { Label(store.t("reconnect"), systemImage: "arrow.clockwise") }
+                    }
+                    Button(role: .destructive) { sessions.close(ref.id) } label: { Label(store.t("disconnect"), systemImage: "power") }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityLabel(store.t("settingsTerminal"))
+            } else {
+                Button(role: .destructive) { sessions.close(ref.id) } label: { Image(systemName: "power") }
+                    .accessibilityLabel(store.t("disconnect"))
+            }
+        }
     }
 }
 
@@ -99,29 +117,26 @@ struct TerminalScreen: View {
     @EnvironmentObject var sessions: SessionManager
     @ObservedObject var session: TerminalSession
     let isActive: Bool
-    let onSnippets: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            toolbar
+            statusStrip
             ZStack {
                 store.pal.terminalBg
                 TerminalHost(session: session, isActive: isActive)
-                    .padding(.horizontal, 4)
 
                 if session.phase == .connecting {
                     VStack {
                         HStack(spacing: 8) {
-                            ProgressView().scaleEffect(0.8)
+                            ProgressView()
                             Text(store.t("connectingTo", ["host": session.host.name]))
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(store.pal.textSecondary)
+                                .font(.footnote.weight(.medium))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
                         }
-                        .padding(.horizontal, 12)
+                        .padding(.horizontal, 14)
                         .padding(.vertical, 8)
-                        .background(store.pal.elevated)
-                        .clipShape(Capsule())
-                        .overlay(Capsule().stroke(store.pal.border, lineWidth: 1))
+                        .background(.regularMaterial, in: Capsule())
                         .padding(.top, 12)
                         Spacer()
                     }
@@ -130,26 +145,23 @@ struct TerminalScreen: View {
 
                 if session.phase == .ended {
                     ZStack {
-                        store.pal.overlay
-                        VStack(spacing: 10) {
-                            Text(store.t("sessionEnded")).font(.system(size: 18, weight: .semibold)).foregroundColor(store.pal.textPrimary)
+                        Color.black.opacity(0.45)
+                        VStack(spacing: 12) {
+                            Text(store.t("sessionEnded")).font(.headline)
                             Text(session.endMessage ?? store.t("sessionEndedNoCode", ["host": session.host.name]))
-                                .font(.system(size: 14))
-                                .foregroundColor(store.pal.textSecondary)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
                             HStack(spacing: 10) {
                                 Button(store.t("closeTab")) { sessions.close(session.id) }
-                                    .buttonStyle(SecondaryButtonStyle(pal: store.pal))
+                                    .buttonStyle(.bordered)
                                 Button { session.reconnect() } label: { Label(store.t("reconnect"), systemImage: "arrow.clockwise") }
-                                    .buttonStyle(PrimaryButtonStyle(pal: store.pal))
+                                    .buttonStyle(.borderedProminent)
                             }
-                            .padding(.top, 4)
                         }
-                        .padding(22)
-                        .frame(maxWidth: 340)
-                        .background(store.pal.elevated)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(store.pal.border, lineWidth: 1))
+                        .padding(20)
+                        .frame(maxWidth: 320)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                         .padding(20)
                     }
                 }
@@ -157,52 +169,38 @@ struct TerminalScreen: View {
         }
     }
 
-    private var toolbar: some View {
-        HStack(spacing: 10) {
+    private var statusStrip: some View {
+        HStack(spacing: 8) {
             Circle()
                 .fill(session.phase == .live ? store.pal.success : (session.phase == .connecting ? store.pal.warning : store.pal.danger))
                 .frame(width: 8, height: 8)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(session.host.name).font(.system(size: 13, weight: .semibold)).foregroundColor(store.pal.textPrimary).lineLimit(1)
-                Text(session.host.address).font(.system(size: 10, design: .monospaced)).foregroundColor(store.pal.textTertiary).lineLimit(1)
-            }
+            Text(session.host.address)
+                .font(.system(.caption2, design: .monospaced))
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 4)
             if let st = session.stats {
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     stat(store.t("statCpu"), st.cpuPercent, 60, 85)
                     stat(store.t("statRam"), st.ramPercent, 70, 90)
                     stat(store.t("statDisk"), st.diskPercent, 75, 90)
                 }
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             }
-            Spacer(minLength: 0)
-            toolButton("textformat.size.smaller", store.t("zoomOut")) { session.changeZoom(-1) }
-            toolButton("textformat.size.larger", store.t("zoomIn")) { session.changeZoom(1) }
-            toolButton("chevron.left.forwardslash.chevron.right", store.t("snippetsTitle"), action: onSnippets)
-            toolButton("eraser", store.t("clearTerminal")) { session.clearScreen() }
-            toolButton("power", store.t("disconnect")) { sessions.close(session.id) }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(store.pal.window)
-        .overlay(Rectangle().fill(store.pal.border).frame(height: 1), alignment: .bottom)
+        .padding(.horizontal, 14)
+        .frame(height: 24)
+        .background(store.pal.terminalBg)
     }
 
     private func stat(_ label: String, _ value: Double, _ warn: Double, _ bad: Double) -> some View {
         let color = value >= bad ? store.pal.danger : (value >= warn ? store.pal.warning : store.pal.success)
-        return VStack(spacing: 0) {
-            Text("\(Int(value.rounded()))%").font(.system(size: 11, weight: .bold, design: .monospaced)).foregroundColor(color)
-            Text(label).font(.system(size: 8)).foregroundColor(store.pal.textTertiary)
+        return HStack(spacing: 3) {
+            Text(label).font(.system(size: 9, weight: .medium)).foregroundColor(.secondary)
+            Text("\(Int(value.rounded()))%").font(.system(size: 10, weight: .bold, design: .monospaced)).foregroundColor(color)
         }
-    }
-
-    private func toolButton(_ icon: String, _ label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 14))
-                .foregroundColor(store.pal.textSecondary)
-                .frame(width: 30, height: 30)
-                .contentShape(Rectangle())
-        }
-        .accessibilityLabel(label)
     }
 }
 
@@ -210,25 +208,49 @@ struct TerminalScreen: View {
 
 struct SnippetPickerSheet: View {
     @EnvironmentObject var store: AppStore
+    @Environment(\.presentationMode) private var presentation
     let onRun: (String) -> Void
+    @State private var query = ""
+
+    private var filtered: [Snippet] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        if q.isEmpty { return store.snippets }
+        return store.snippets.filter { $0.title.lowercased().contains(q) || $0.command.lowercased().contains(q) || $0.category.lowercased().contains(q) }
+    }
 
     var body: some View {
-        SheetScaffold(title: store.t("snippetsTitle")) {
-            if store.snippets.isEmpty {
-                EmptyStateView(icon: "chevron.left.forwardslash.chevron.right", title: store.t("emptySnippetsTitle"), message: store.t("emptySnippetsDesc")) { EmptyView() }
-            }
-            ForEach(store.snippets) { s in
-                Button { onRun(s.command) } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(s.title).font(.system(size: 16, weight: .semibold)).foregroundColor(store.pal.textPrimary)
-                        Text(s.command).font(.system(size: 12, design: .monospaced)).foregroundColor(store.pal.textSecondary).lineLimit(2)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .card()
+        NavigationView {
+            List {
+                if filtered.isEmpty {
+                    EmptyStateView(icon: "chevron.left.forwardslash.chevron.right", title: store.t("emptySnippetsTitle"), message: store.t("emptySnippetsDesc"))
+                        .themedRow()
                 }
-                .buttonStyle(.plain)
+                ForEach(filtered) { s in
+                    Button { onRun(s.command) } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(s.title).font(.headline).foregroundColor(.primary).lineLimit(1)
+                            Text(s.command)
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundColor(.secondary)
+                                .lineLimit(2)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .themedRow()
+                }
+            }
+            .themedList()
+            .searchable(text: $query, prompt: Text(store.t("snippetsTitle")))
+            .navigationTitle(store.t("snippetsTitle"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(store.t("close")) { presentation.wrappedValue.dismiss() }
+                }
             }
         }
+        .navigationViewStyle(.stack)
+        .sheetDetents(medium: true)
+        .preferredColorScheme(store.preferredScheme)
     }
 }

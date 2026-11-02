@@ -59,77 +59,61 @@ struct KeysView: View {
     @State private var pendingRemove: SSHKeyInfo?
 
     var body: some View {
-        VStack(spacing: 0) {
-            PageHeader(
-                title: store.t("keysTitle"),
-                subtitle: store.t(store.keys.count == 1 ? "keysOne" : "keysOther", ["n": store.keys.count])
-            ) {
-                Menu {
-                    Button { importing = true } label: { Label(store.t("keysImport"), systemImage: "square.and.arrow.down") }
-                    Button { showPaste = true } label: { Label(store.t("keysPaste"), systemImage: "doc.on.clipboard") }
-                    Button { generate() } label: { Label(store.t("keysGenerate"), systemImage: "wand.and.stars") }
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 17, weight: .semibold))
-                        .frame(width: 40, height: 40)
-                        .foregroundColor(.white)
-                        .background(store.pal.accent)
-                        .clipShape(Circle())
-                }
-                .accessibilityLabel(store.t("keysAdd"))
-            }
-
-            ScrollView {
+        NavigationView {
+            List {
                 if store.keys.isEmpty {
-                    EmptyStateView(icon: "key", title: store.t("keysEmptyTitle"), message: store.t("keysEmptyDescIos")) {
+                    Section {
+                        EmptyStateView(icon: "key", title: store.t("keysEmptyTitle"), message: store.t("keysEmptyDescIos"))
                         Button { generate() } label: { Label(store.t("keysGenerate"), systemImage: "wand.and.stars") }
-                            .buttonStyle(PrimaryButtonStyle(pal: store.pal))
                     }
+                    .themedRow()
                 }
-                LazyVStack(spacing: 8) {
-                    ForEach(store.keys) { k in
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "key.fill").font(.system(size: 18)).foregroundColor(store.pal.accent)
-                                    .frame(width: 36, height: 36).background(store.pal.accentSoft).clipShape(Circle())
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(k.name).font(.system(size: 16, weight: .semibold)).foregroundColor(store.pal.textPrimary)
-                                    Text(k.keyType + (k.encrypted ? " · " + store.t("keyEncryptedBadge") : ""))
-                                        .font(.system(size: 12)).foregroundColor(store.pal.textTertiary)
-                                }
-                                Spacer()
-                            }
-                            if let pub = k.publicKey {
-                                Text(pub)
-                                    .font(.system(size: 10, design: .monospaced))
-                                    .foregroundColor(store.pal.textSecondary)
-                                    .lineLimit(2)
-                                    .padding(8)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(store.pal.input)
-                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                            }
-                            HStack {
-                                if let pub = k.publicKey {
-                                    Button {
-                                        UIPasteboard.general.string = pub
-                                        store.showToast(store.t("publicKeyCopied"), .success)
-                                    } label: { Label(store.t("copyPublicKey"), systemImage: "doc.on.doc") }
-                                        .buttonStyle(SecondaryButtonStyle(pal: store.pal, compact: true))
-                                }
-                                Spacer()
-                                Button { pendingRemove = k } label: { Label(store.t("remove"), systemImage: "trash") }
-                                    .buttonStyle(SecondaryButtonStyle(pal: store.pal, compact: true, danger: true))
+                ForEach(store.keys) { k in
+                    Section {
+                        HStack(spacing: 12) {
+                            Image(systemName: "key.fill").foregroundColor(store.pal.accent).frame(width: 28)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(k.name).font(.headline).lineLimit(1)
+                                Text(k.keyType + (k.encrypted ? " · " + store.t("keyEncryptedBadge") : ""))
+                                    .font(.caption).foregroundColor(.secondary)
                             }
                         }
-                        .padding(12)
-                        .card()
+                        .themedRow()
+                        if let pub = k.publicKey {
+                            Text(pub)
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundColor(.secondary)
+                                .lineLimit(2)
+                                .truncationMode(.middle)
+                                .themedRow()
+                            Button {
+                                UIPasteboard.general.string = pub
+                                store.showToast(store.t("publicKeyCopied"), .success)
+                            } label: { Label(store.t("copyPublicKey"), systemImage: "doc.on.doc") }
+                                .themedRow()
+                        }
+                        Button(role: .destructive) { pendingRemove = k } label: { Label(store.t("remove"), systemImage: "trash") }
+                            .themedRow()
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 20)
+            }
+            .themedList()
+            .navigationTitle(store.t("keysTitle"))
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Menu {
+                        Button { importing = true } label: { Label(store.t("keysImport"), systemImage: "square.and.arrow.down") }
+                        Button { showPaste = true } label: { Label(store.t("keysPaste"), systemImage: "doc.on.clipboard") }
+                        Button { generate() } label: { Label(store.t("keysGenerate"), systemImage: "wand.and.stars") }
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel(store.t("keysAdd"))
+                }
             }
         }
+        .navigationViewStyle(.stack)
         .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
             guard case .success(let urls) = result, let url = urls.first else { return }
             let scoped = url.startAccessingSecurityScopedResource()
@@ -192,7 +176,7 @@ struct PasteKeySheet: View {
     @State private var text = ""
 
     var body: some View {
-        SheetScaffold(
+        FormSheet(
             title: store.t("keysPaste"),
             saveLabel: store.t("keysAdd"),
             saveEnabled: !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -201,21 +185,18 @@ struct PasteKeySheet: View {
                 onAdd(name, text)
             }
         ) {
-            InputField(label: store.t("keyName"), text: $name, placeholder: store.t("keyNamePh"))
-            VStack(alignment: .leading, spacing: 6) {
-                FieldLabel(text: store.t("keyPastePrivate"))
+            Section {
+                FormField(label: store.t("keyName"), text: $name, placeholder: store.t("keyNamePh"))
+            }
+            Section(header: Text(store.t("keyPastePrivate"))) {
                 TextEditor(text: $text)
                     .font(.system(size: 11, design: .monospaced))
                     .textInputAutocapitalization(.never)
                     .disableAutocorrection(true)
-                    .frame(minHeight: 220)
-                    .padding(6)
-                    .background(store.pal.input)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .frame(minHeight: 200)
                 Button {
                     if let s = UIPasteboard.general.string { text = s }
                 } label: { Label(store.t("pasteFromClipboard"), systemImage: "doc.on.clipboard") }
-                    .buttonStyle(SecondaryButtonStyle(pal: store.pal, compact: true))
             }
         }
     }

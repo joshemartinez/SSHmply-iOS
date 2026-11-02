@@ -37,29 +37,30 @@ struct RootView: View {
     @State private var editor: HostEditorTarget?
 
     var body: some View {
+        // A plain TabView: on iOS 26 it automatically gets the floating Liquid Glass tab bar.
         ZStack {
-            store.pal.window.ignoresSafeArea()
+            TabView(selection: $tab) {
+                ServersView(onEdit: { editor = HostEditorTarget(host: $0) }, onNew: { editor = HostEditorTarget(host: nil) })
+                    .tabItem { Label(store.t(MainTab.hosts.titleKey), systemImage: MainTab.hosts.icon) }
+                    .tag(MainTab.hosts)
 
-            VStack(spacing: 0) {
-                Group {
-                    switch tab {
-                    case .hosts:
-                        ServersView(onEdit: { editor = HostEditorTarget(host: $0) }, onNew: { editor = HostEditorTarget(host: nil) })
-                    case .sftp:
-                        SftpPickerView(onNew: { editor = HostEditorTarget(host: nil) })
-                    case .snippets:
-                        SnippetsView()
-                    case .keys:
-                        KeysView()
-                    case .settings:
-                        SettingsView()
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                SftpPickerView(onNew: { editor = HostEditorTarget(host: nil) })
+                    .tabItem { Label(store.t(MainTab.sftp.titleKey), systemImage: MainTab.sftp.icon) }
+                    .tag(MainTab.sftp)
 
-                if sessions.hasSessions { SessionsBanner() }
-                TabBarView(tab: $tab)
+                SnippetsView()
+                    .tabItem { Label(store.t(MainTab.snippets.titleKey), systemImage: MainTab.snippets.icon) }
+                    .tag(MainTab.snippets)
+
+                KeysView()
+                    .tabItem { Label(store.t(MainTab.keys.titleKey), systemImage: MainTab.keys.icon) }
+                    .tag(MainTab.keys)
+
+                SettingsView()
+                    .tabItem { Label(store.t(MainTab.settings.titleKey), systemImage: MainTab.settings.icon) }
+                    .tag(MainTab.settings)
             }
+            .accentColor(store.pal.accent)
 
             ToastView()
         }
@@ -78,65 +79,5 @@ struct RootView: View {
             sessions.applyThemeToTerminals()
         }
         .onChange(of: store.settings) { _ in sessions.applySettingsToTerminals() }
-    }
-}
-
-struct TabBarView: View {
-    @EnvironmentObject var store: AppStore
-    @Binding var tab: MainTab
-
-    var body: some View {
-        HStack(spacing: 0) {
-            ForEach(MainTab.allCases, id: \.self) { item in
-                Button {
-                    tab = item
-                } label: {
-                    VStack(spacing: 3) {
-                        Image(systemName: item.icon).font(.system(size: 20, weight: .regular))
-                        Text(store.t(item.titleKey))
-                            .font(.system(size: 10, weight: .medium))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                    }
-                    .foregroundColor(tab == item ? store.pal.accent : store.pal.textTertiary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(store.t(item.titleKey))
-            }
-        }
-        .padding(.horizontal, 4)
-        .background(
-            store.pal.sidebar
-                .overlay(Rectangle().fill(store.pal.border).frame(height: 1), alignment: .top)
-                .ignoresSafeArea(edges: .bottom)
-        )
-    }
-}
-
-/// Shown above the tab bar while sessions are running in the background.
-struct SessionsBanner: View {
-    @EnvironmentObject var store: AppStore
-    @EnvironmentObject var sessions: SessionManager
-
-    var body: some View {
-        Button {
-            if sessions.activeId == nil, let first = sessions.refs.last { sessions.activate(first.id) } else { sessions.presented = true }
-        } label: {
-            HStack(spacing: 8) {
-                Circle().fill(store.pal.success).frame(width: 8, height: 8)
-                Text("\(store.t("sessionsCount")): \(sessions.refs.count)")
-                    .font(.system(size: 14, weight: .semibold))
-                Spacer()
-                Image(systemName: "chevron.up").font(.system(size: 12, weight: .bold))
-            }
-            .foregroundColor(store.pal.accent)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(store.pal.accentSoft)
-        }
-        .buttonStyle(.plain)
     }
 }

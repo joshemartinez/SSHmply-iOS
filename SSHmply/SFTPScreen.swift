@@ -15,32 +15,31 @@ struct SFTPScreen: View {
     @State private var previewText: IdentifiableText?
 
     var body: some View {
-        VStack(spacing: 0) {
+        ZStack {
+            store.pal.window.ignoresSafeArea()
             switch session.phase {
             case .connecting:
-                Spacer()
                 VStack(spacing: 12) {
                     ProgressView()
-                    Text(store.t("sftpConnecting")).font(.system(size: 14)).foregroundColor(store.pal.textSecondary)
+                    Text(store.t("sftpConnecting")).font(.subheadline).foregroundColor(.secondary)
                 }
-                Spacer()
             case .failed(let message):
-                Spacer()
                 VStack(spacing: 12) {
-                    Image(systemName: "exclamationmark.triangle").font(.system(size: 30)).foregroundColor(store.pal.danger)
-                    Text(store.t("sftpConnectFailed")).font(.system(size: 17, weight: .semibold)).foregroundColor(store.pal.textPrimary)
-                    Text(message).font(.system(size: 14)).foregroundColor(store.pal.textSecondary).multilineTextAlignment(.center)
+                    Image(systemName: "exclamationmark.triangle").font(.system(size: 34)).foregroundColor(store.pal.danger)
+                    Text(store.t("sftpConnectFailed")).font(.headline)
+                    Text(message).font(.subheadline).foregroundColor(.secondary).multilineTextAlignment(.center)
                     HStack {
-                        Button(store.t("closeTab")) { sessions.close(session.id) }.buttonStyle(SecondaryButtonStyle(pal: store.pal))
-                        Button(store.t("retry")) { Task { await session.connect() } }.buttonStyle(PrimaryButtonStyle(pal: store.pal))
+                        Button(store.t("closeTab")) { sessions.close(session.id) }.buttonStyle(.bordered)
+                        Button(store.t("retry")) { Task { await session.connect() } }.buttonStyle(.borderedProminent)
                     }
                 }
                 .padding(24)
-                Spacer()
             case .ready:
-                header
-                browser
-                if !session.transfers.isEmpty { transfersPanel }
+                VStack(spacing: 0) {
+                    header
+                    browser
+                    if !session.transfers.isEmpty { transfersPanel }
+                }
             }
         }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
@@ -52,17 +51,19 @@ struct SFTPScreen: View {
         .sheet(item: $shareItem) { item in ActivityView(items: [item.url]) }
         .sheet(item: $previewURL) { item in QuickLookView(url: item.url).ignoresSafeArea() }
         .sheet(item: $previewText) { item in
-            SheetScaffold(title: item.title) {
-                Text(item.text)
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundColor(store.pal.textPrimary)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Button {
-                    UIPasteboard.general.string = item.text
-                    store.showToast(store.t("copied"), .success)
-                } label: { Label(store.t("copyText"), systemImage: "doc.on.doc") }
-                    .buttonStyle(SecondaryButtonStyle(pal: store.pal, compact: true))
+            FormSheet(title: item.title) {
+                Section {
+                    Text(item.text)
+                        .font(.system(size: 12, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                Section {
+                    Button {
+                        UIPasteboard.general.string = item.text
+                        store.showToast(store.t("copied"), .success)
+                    } label: { Label(store.t("copyText"), systemImage: "doc.on.doc") }
+                }
             }
             .environmentObject(store)
         }
@@ -94,97 +95,91 @@ struct SFTPScreen: View {
     // MARK: Pieces
 
     private var header: some View {
-        VStack(spacing: 6) {
-            HStack(spacing: 8) {
-                headerButton("chevron.left", store.t("goUp")) { Task { await session.goBack() } }
-                    .opacity(session.canGoBack ? 1 : 0.35)
-                    .disabled(!session.canGoBack)
-                headerButton("arrow.up", store.t("goUp")) { Task { await session.goUp() } }
-                    .opacity(session.path == "/" ? 0.35 : 1)
-                    .disabled(session.path == "/")
-                Text(session.path)
-                    .font(.system(size: 13, design: .monospaced))
-                    .foregroundColor(store.pal.textSecondary)
-                    .lineLimit(1)
-                    .truncationMode(.head)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(spacing: 4) {
+            Text(session.path)
+                .font(.system(.footnote, design: .monospaced))
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+                .truncationMode(.head)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+            HStack(spacing: 0) {
+                headerButton("chevron.left", store.t("backToList"), enabled: session.canGoBack) { Task { await session.goBack() } }
+                headerButton("arrow.up", store.t("goUp"), enabled: session.path != "/") { Task { await session.goUp() } }
                 headerButton("arrow.clockwise", store.t("refresh")) { Task { await session.refresh() } }
                 headerButton("folder.badge.plus", store.t("newFolder")) { askNewFolder() }
                 headerButton("square.and.arrow.up", store.t("uploadFiles")) { importing = true }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
         }
+        .padding(.top, 6)
         .background(store.pal.window)
-        .overlay(Rectangle().fill(store.pal.border).frame(height: 1), alignment: .bottom)
+        .overlay(Rectangle().fill(Color.primary.opacity(0.12)).frame(height: 0.5), alignment: .bottom)
     }
 
-    private func headerButton(_ icon: String, _ label: String, action: @escaping () -> Void) -> some View {
+    private func headerButton(_ icon: String, _ label: String, enabled: Bool = true, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(store.pal.accent)
-                .frame(width: 34, height: 34)
+                .font(.system(size: 18, weight: .medium))
+                .frame(maxWidth: .infinity, minHeight: 40)
                 .contentShape(Rectangle())
         }
+        .disabled(!enabled)
         .accessibilityLabel(label)
     }
 
     private var browser: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                if session.loading && session.entries.isEmpty {
-                    ProgressView().padding(.top, 40)
-                } else if let err = session.listError {
-                    Text(err).font(.system(size: 14)).foregroundColor(store.pal.danger).padding(24)
-                } else if session.entries.isEmpty {
-                    EmptyStateView(icon: "folder", title: store.t("emptyFolder"), message: "") { EmptyView() }
+        List {
+            if session.loading && session.entries.isEmpty {
+                HStack { Spacer(); ProgressView(); Spacer() }.listRowBackground(Color.clear)
+            } else if let err = session.listError {
+                Text(err).font(.subheadline).foregroundColor(store.pal.danger).listRowBackground(Color.clear)
+            } else if session.entries.isEmpty {
+                EmptyStateView(icon: "folder", title: store.t("emptyFolder"), message: "").listRowBackground(Color.clear)
+            }
+            ForEach(session.entries) { entry in
+                Button {
+                    if entry.isDir { Task { await session.list(entry.path) } } else { selected = entry }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: icon(for: entry))
+                            .font(.system(size: 20))
+                            .foregroundColor(entry.isDir ? store.pal.accent : .secondary)
+                            .frame(width: 28)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(entry.name).font(.body).foregroundColor(.primary).lineLimit(1).truncationMode(.middle)
+                            HStack(spacing: 6) {
+                                if !entry.isDir { Text(formatBytes(entry.size)) }
+                                if let m = entry.modified { Text(Self.dateFormatter.string(from: m)) }
+                            }
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                        }
+                        Spacer(minLength: 4)
+                        if entry.isDir {
+                            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundColor(.secondary)
+                        }
+                    }
+                    .contentShape(Rectangle())
                 }
-                ForEach(session.entries) { entry in
-                    Button {
-                        if entry.isDir { Task { await session.list(entry.path) } } else { selected = entry }
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: icon(for: entry))
-                                .font(.system(size: 20))
-                                .foregroundColor(entry.isDir ? store.pal.accent : store.pal.textSecondary)
-                                .frame(width: 28)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(entry.name).font(.system(size: 15)).foregroundColor(store.pal.textPrimary).lineLimit(1)
-                                HStack(spacing: 8) {
-                                    if !entry.isDir { Text(formatBytes(entry.size)) }
-                                    if let m = entry.modified { Text(Self.dateFormatter.string(from: m)) }
-                                    Text(entry.permissions).font(.system(size: 10, design: .monospaced))
-                                }
-                                .font(.system(size: 11))
-                                .foregroundColor(store.pal.textTertiary)
-                            }
-                            Spacer()
-                            if entry.isDir {
-                                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundColor(store.pal.textTertiary)
-                            } else {
-                                Image(systemName: "ellipsis").foregroundColor(store.pal.textTertiary)
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 9)
-                        .contentShape(Rectangle())
+                .themedRow()
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button(role: .destructive) { deleting = entry } label: { Label(store.t("delete"), systemImage: "trash") }
+                    Button { askRename(entry) } label: { Label(store.t("rename"), systemImage: "pencil") }.tint(.gray)
+                }
+                .contextMenu {
+                    if !entry.isDir {
+                        Button { preview(entry) } label: { Label(store.t("preview"), systemImage: "eye") }
+                        Button { download(entry, share: false) } label: { Label(store.t("download"), systemImage: "arrow.down.circle") }
+                        Button { download(entry, share: true) } label: { Label(store.t("shareDownloaded"), systemImage: "square.and.arrow.up") }
                     }
-                    .buttonStyle(.plain)
-                    .contextMenu {
-                        if !entry.isDir {
-                            Button { preview(entry) } label: { Label(store.t("preview"), systemImage: "eye") }
-                            Button { download(entry, share: false) } label: { Label(store.t("download"), systemImage: "arrow.down.circle") }
-                            Button { download(entry, share: true) } label: { Label(store.t("shareDownloaded"), systemImage: "square.and.arrow.up") }
-                        }
-                        Button { askRename(entry) } label: { Label(store.t("rename"), systemImage: "pencil") }
-                        Button(role: .destructive) { deleting = entry } label: { Label(store.t("delete"), systemImage: "trash") }
-                    }
-                    Divider().background(store.pal.border).padding(.leading, 56)
+                    Button { askRename(entry) } label: { Label(store.t("rename"), systemImage: "pencil") }
+                    Button(role: .destructive) { deleting = entry } label: { Label(store.t("delete"), systemImage: "trash") }
                 }
             }
-            .padding(.bottom, 12)
         }
+        .themedList()
+        .listStyle(.plain)
     }
 
     private var transfersPanel: some View {
@@ -194,33 +189,33 @@ struct SFTPScreen: View {
                     Image(systemName: t.direction == .upload ? "arrow.up.circle" : "arrow.down.circle")
                         .foregroundColor(t.error != nil ? store.pal.danger : store.pal.accent)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(t.name).font(.system(size: 13, weight: .medium)).foregroundColor(store.pal.textPrimary).lineLimit(1)
+                        Text(t.name).font(.footnote.weight(.medium)).lineLimit(1).truncationMode(.middle)
                         if let e = t.error {
-                            Text("\(store.t("transferFailed")): \(e)").font(.system(size: 11)).foregroundColor(store.pal.danger).lineLimit(2)
+                            Text("\(store.t("transferFailed")): \(e)").font(.caption2).foregroundColor(store.pal.danger).lineLimit(2)
                         } else if t.cancelled {
-                            Text(store.t("transferCancelled")).font(.system(size: 11)).foregroundColor(store.pal.textTertiary)
+                            Text(store.t("transferCancelled")).font(.caption2).foregroundColor(.secondary)
                         } else if t.done {
-                            Text(store.t("transferDone")).font(.system(size: 11)).foregroundColor(store.pal.success)
+                            Text(store.t("transferDone")).font(.caption2).foregroundColor(store.pal.success)
                         } else {
                             ProgressView(value: t.total > 0 ? min(1, Double(t.transferred) / Double(t.total)) : 0)
-                            Text("\(store.t(t.direction == .upload ? "uploading" : "downloading")) · \(formatBytes(t.transferred)) / \(formatBytes(t.total))")
-                                .font(.system(size: 11)).foregroundColor(store.pal.textTertiary)
+                            Text("\(formatBytes(t.transferred)) / \(formatBytes(t.total))")
+                                .font(.caption2).foregroundColor(.secondary).lineLimit(1)
                         }
                     }
-                    Spacer()
+                    Spacer(minLength: 4)
                     Button {
                         if t.done { session.dismissTransfer(t.id) } else { session.cancelTransfer(t.id) }
                     } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundColor(store.pal.textTertiary).frame(width: 30, height: 30)
+                        Image(systemName: "xmark.circle.fill").foregroundColor(.secondary).frame(width: 34, height: 34)
                     }
+                    .buttonStyle(.borderless)
                     .accessibilityLabel(store.t(t.done ? "close" : "cancel"))
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 6)
+                .padding(.vertical, 4)
             }
         }
-        .background(store.pal.sidebar)
-        .overlay(Rectangle().fill(store.pal.border).frame(height: 1), alignment: .top)
+        .background(.bar)
     }
 
     // MARK: Actions
@@ -319,7 +314,7 @@ struct TextPromptSheet: View {
     @State private var text = ""
 
     var body: some View {
-        SheetScaffold(
+        FormSheet(
             title: request.title,
             saveLabel: request.confirm,
             saveEnabled: !text.trimmingCharacters(in: .whitespaces).isEmpty,
@@ -327,9 +322,12 @@ struct TextPromptSheet: View {
                 let value = text.trimmingCharacters(in: .whitespaces)
                 presentation.wrappedValue.dismiss()
                 request.action(value)
-            }
+            },
+            medium: true
         ) {
-            InputField(label: request.label, text: $text, placeholder: request.label)
+            Section {
+                FormField(label: request.label, text: $text, placeholder: request.label)
+            }
         }
         .onAppear { text = request.initial }
     }

@@ -9,6 +9,7 @@ struct SSHmplyApp: App {
 
     init() {
         UITextView.appearance().backgroundColor = .clear
+        UITableView.appearance().backgroundColor = .clear // iOS 15 lists
         let s = AppStore()
         _store = StateObject(wrappedValue: s)
         _sessions = StateObject(wrappedValue: SessionManager(store: s))

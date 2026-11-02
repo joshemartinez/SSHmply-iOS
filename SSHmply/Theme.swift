@@ -46,7 +46,7 @@ struct Palette {
         switch theme {
         case .light:
             return Tokens(
-                window: UIColor(hex: 0xF5F5F7), sidebar: UIColor(hex: 0xEBEBEF), elevated: UIColor(hex: 0xFFFFFF),
+                window: UIColor(hex: 0xF2F2F7), sidebar: UIColor(hex: 0xEBEBEF), elevated: UIColor(hex: 0xFFFFFF),
                 input: UIColor(white: 0, alpha: 0.05), hover: UIColor(white: 0, alpha: 0.045),
                 border: UIColor(white: 0, alpha: 0.09), borderStrong: UIColor(white: 0, alpha: 0.16),
                 textPrimary: UIColor(hex: 0x1D1D1F), textSecondary: UIColor(hex: 0x5E5E63), textTertiary: UIColor(hex: 0x86868B),
@@ -57,7 +57,7 @@ struct Palette {
             )
         case .dark:
             return Tokens(
-                window: UIColor(hex: 0x1C1C1E), sidebar: UIColor(hex: 0x252528), elevated: UIColor(hex: 0x2C2C2F),
+                window: UIColor(hex: 0x1C1C1E), sidebar: UIColor(hex: 0x252528), elevated: UIColor(hex: 0x2C2C2E),
                 input: UIColor(white: 1, alpha: 0.07), hover: UIColor(white: 1, alpha: 0.06),
                 border: UIColor(white: 1, alpha: 0.09), borderStrong: UIColor(white: 1, alpha: 0.18),
                 textPrimary: UIColor(hex: 0xF5F5F7), textSecondary: UIColor(hex: 0xA8A8AE), textTertiary: UIColor(hex: 0x7D7D84),
@@ -68,7 +68,7 @@ struct Palette {
             )
         case .oled:
             return Tokens(
-                window: UIColor(hex: 0x000000), sidebar: UIColor(hex: 0x0B0B0C), elevated: UIColor(hex: 0x131315),
+                window: UIColor(hex: 0x000000), sidebar: UIColor(hex: 0x0B0B0C), elevated: UIColor(hex: 0x1C1C1E),
                 input: UIColor(white: 1, alpha: 0.08), hover: UIColor(white: 1, alpha: 0.07),
                 border: UIColor(white: 1, alpha: 0.12), borderStrong: UIColor(white: 1, alpha: 0.22),
                 textPrimary: UIColor(hex: 0xFFFFFF), textSecondary: UIColor(hex: 0xACACB2), textTertiary: UIColor(hex: 0x7A7A81),
@@ -137,50 +137,5 @@ struct TerminalColors {
                 background: 0x000000, foreground: 0xF2F2F4, cursor: 0x0A84FF, selection: 0x0A84FF, selectionAlpha: 0.40, ansi: darkAnsi
             )
         }
-    }
-}
-
-// MARK: - Reusable styling
-
-struct CardBackground: ViewModifier {
-    @EnvironmentObject var store: AppStore
-    func body(content: Content) -> some View {
-        content
-            .background(store.pal.elevated)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(store.pal.border, lineWidth: 1))
-    }
-}
-
-extension View {
-    func card() -> some View { modifier(CardBackground()) }
-}
-
-struct PrimaryButtonStyle: ButtonStyle {
-    var pal: Palette
-    var compact = false
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: compact ? 14 : 16, weight: .semibold))
-            .foregroundColor(.white)
-            .padding(.horizontal, compact ? 12 : 18)
-            .padding(.vertical, compact ? 7 : 12)
-            .background(pal.accent.opacity(configuration.isPressed ? 0.8 : 1))
-            .clipShape(RoundedRectangle(cornerRadius: compact ? 9 : 12, style: .continuous))
-    }
-}
-
-struct SecondaryButtonStyle: ButtonStyle {
-    var pal: Palette
-    var compact = false
-    var danger = false
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: compact ? 14 : 16, weight: .medium))
-            .foregroundColor(danger ? pal.danger : pal.textPrimary)
-            .padding(.horizontal, compact ? 12 : 18)
-            .padding(.vertical, compact ? 7 : 12)
-            .background((danger ? pal.dangerSoft : pal.input).opacity(configuration.isPressed ? 0.6 : 1))
-            .clipShape(RoundedRectangle(cornerRadius: compact ? 9 : 12, style: .continuous))
     }
 }

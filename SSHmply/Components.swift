@@ -2,67 +2,79 @@ import SwiftUI
 import UIKit
 import QuickLook
 
-// MARK: - Page header
+// MARK: - Availability helpers (keep iOS 15 working, use newer APIs when present)
 
-struct PageHeader<Trailing: View>: View {
-    @EnvironmentObject var store: AppStore
-    let title: String
-    var subtitle: String?
-    @ViewBuilder var trailing: () -> Trailing
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 30, weight: .bold))
-                    .foregroundColor(store.pal.textPrimary)
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.system(size: 14))
-                        .foregroundColor(store.pal.textTertiary)
-                }
-            }
-            Spacer(minLength: 8)
-            trailing()
+extension View {
+    /// Native bottom sheet sizing on iOS 16+; plain full sheet on iOS 15.
+    @ViewBuilder
+    func sheetDetents(medium: Bool) -> some View {
+        if #available(iOS 16.0, *) {
+            self.presentationDetents(medium ? [.medium, .large] : [.large])
+                .presentationDragIndicator(.visible)
+        } else {
+            self
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 14)
-        .padding(.bottom, 10)
+    }
+
+    @ViewBuilder
+    func hideListBackground() -> some View {
+        if #available(iOS 16.0, *) {
+            self.scrollContentBackground(.hidden)
+        } else {
+            self
+        }
+    }
+
+    func themedList() -> some View { modifier(ThemedListModifier()) }
+    func themedRow() -> some View { modifier(ThemedRowModifier()) }
+}
+
+struct ThemedListModifier: ViewModifier {
+    @EnvironmentObject var store: AppStore
+    func body(content: Content) -> some View {
+        content
+            .listStyle(.insetGrouped)
+            .hideListBackground()
+            .background(store.pal.window.ignoresSafeArea())
     }
 }
 
-// MARK: - Empty state
-
-struct EmptyStateView<Action: View>: View {
+struct ThemedRowModifier: ViewModifier {
     @EnvironmentObject var store: AppStore
+    func body(content: Content) -> some View {
+        content.listRowBackground(store.pal.elevated)
+    }
+}
+
+// MARK: - Empty state (used as a list row / section)
+
+struct EmptyStateView: View {
     let icon: String
     let title: String
     let message: String
-    @ViewBuilder var action: () -> Action
 
     var body: some View {
         VStack(spacing: 10) {
-            ZStack {
-                Circle().fill(store.pal.accentSoft).frame(width: 64, height: 64)
-                Image(systemName: icon).font(.system(size: 26)).foregroundColor(store.pal.accent)
+            Image(systemName: icon)
+                .font(.system(size: 40, weight: .light))
+                .foregroundColor(.secondary)
+            Text(title).font(.headline).multilineTextAlignment(.center)
+            if !message.isEmpty {
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
             }
-            Text(title).font(.system(size: 18, weight: .semibold)).foregroundColor(store.pal.textPrimary)
-            Text(message)
-                .font(.system(size: 14))
-                .foregroundColor(store.pal.textTertiary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-            action().padding(.top, 8)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 48)
+        .padding(.vertical, 28)
+        .padding(.horizontal, 8)
     }
 }
 
 // MARK: - OS icon
 
 struct OSIconView: View {
-    @EnvironmentObject var store: AppStore
     let os: String?
     var size: CGFloat = 26
 
@@ -75,35 +87,25 @@ struct OSIconView: View {
     var body: some View {
         let raw = (os ?? "linux").lowercased().trimmingCharacters(in: .whitespaces)
         let key = Self.aliases[raw] ?? raw
-        if key == "macos" {
-            Image("OS_macos").renderingMode(.template).resizable().scaledToFit()
-                .foregroundColor(store.pal.textPrimary).frame(width: size, height: size)
-        } else if let color = Self.known[key] {
-            Image("OS_\(key)").renderingMode(.template).resizable().scaledToFit()
-                .foregroundColor(Color(UIColor(hex: color))).frame(width: size, height: size)
-        } else {
-            Image(systemName: "server.rack").font(.system(size: size * 0.8))
-                .foregroundColor(store.pal.textSecondary).frame(width: size, height: size)
+        Group {
+            if key == "macos" {
+                Image("OS_macos").renderingMode(.template).resizable().scaledToFit().foregroundColor(.primary)
+            } else if let color = Self.known[key] {
+                Image("OS_\(key)").renderingMode(.template).resizable().scaledToFit().foregroundColor(Color(UIColor(hex: color)))
+            } else {
+                Image(systemName: "server.rack").resizable().scaledToFit().padding(2).foregroundColor(.secondary)
+            }
         }
+        .frame(width: size, height: size)
     }
 }
 
-// MARK: - Inputs
+// MARK: - Form building blocks
 
-struct FieldLabel: View {
+/// Label above the field: works at any width and in any language.
+struct FormField: View {
     @EnvironmentObject var store: AppStore
-    let text: String
-    var body: some View {
-        Text(text)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundColor(store.pal.textSecondary)
-            .textCase(.uppercase)
-    }
-}
-
-struct InputField: View {
-    @EnvironmentObject var store: AppStore
-    let label: String?
+    let label: String
     @Binding var text: String
     var placeholder = ""
     var secure = false
@@ -112,9 +114,9 @@ struct InputField: View {
     @State private var reveal = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let label { FieldLabel(text: label) }
-            HStack {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label).font(.caption).foregroundColor(.secondary).lineLimit(1)
+            HStack(spacing: 8) {
                 Group {
                     if secure && !reveal {
                         SecureField(placeholder, text: $text)
@@ -125,105 +127,52 @@ struct InputField: View {
                 .textInputAutocapitalization(.never)
                 .disableAutocorrection(true)
                 .keyboardType(keyboard)
-                .font(mono ? .system(size: 16, design: .monospaced) : .system(size: 16))
-                .foregroundColor(store.pal.textPrimary)
+                .font(mono ? .system(.body, design: .monospaced) : .body)
                 if secure {
                     Button { reveal.toggle() } label: {
-                        Image(systemName: reveal ? "eye.slash" : "eye").foregroundColor(store.pal.textTertiary)
+                        Image(systemName: reveal ? "eye.slash" : "eye").foregroundColor(.secondary)
                     }
+                    .buttonStyle(.borderless)
                     .accessibilityLabel(store.t(reveal ? "hidePassword" : "showPassword"))
                 }
             }
-            .padding(.horizontal, 12)
-            .frame(minHeight: 44)
-            .background(store.pal.input)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
+        .padding(.vertical, 2)
     }
 }
 
-struct SearchBar: View {
-    @EnvironmentObject var store: AppStore
-    @Binding var text: String
-    let placeholder: String
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").foregroundColor(store.pal.textTertiary)
-            TextField(placeholder, text: $text)
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
-                .foregroundColor(store.pal.textPrimary)
-            if !text.isEmpty {
-                Button { text = "" } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundColor(store.pal.textTertiary)
-                }
-            }
-        }
-        .padding(.horizontal, 12)
-        .frame(height: 40)
-        .background(store.pal.input)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-    }
-}
-
-struct Pill: View {
-    @EnvironmentObject var store: AppStore
-    let title: String
-    var icon: String?
-    let selected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                if let icon { Image(systemName: icon).font(.system(size: 11)) }
-                Text(title).font(.system(size: 13, weight: .medium))
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .foregroundColor(selected ? store.pal.accent : store.pal.textSecondary)
-            .background(selected ? store.pal.accentSoft : store.pal.input)
-            .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Sheet scaffold
-
-struct SheetScaffold<Content: View>: View {
+/// Native form inside a navigation sheet with Cancel / Save buttons.
+struct FormSheet<Content: View>: View {
     @EnvironmentObject var store: AppStore
     @Environment(\.presentationMode) private var presentation
     let title: String
     var saveLabel: String?
     var saveEnabled = true
     var onSave: (() -> Void)?
+    var medium = false
     @ViewBuilder var content: () -> Content
 
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) { content() }
-                    .padding(20)
-            }
-            .background(store.pal.window.ignoresSafeArea())
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationTitle(title)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(store.t(onSave == nil ? "close" : "cancel")) { presentation.wrappedValue.dismiss() }
+            Form { content() }
+                .hideListBackground()
+                .background(store.pal.window.ignoresSafeArea())
+                .navigationBarTitleDisplayMode(.inline)
+                .navigationTitle(title)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(store.t(onSave == nil ? "close" : "cancel")) { presentation.wrappedValue.dismiss() }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(saveLabel ?? store.t("save")) { onSave?() }
+                            .font(.body.weight(.semibold))
+                            .disabled(onSave == nil || !saveEnabled)
+                            .opacity(onSave == nil ? 0 : 1)
+                    }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(saveLabel ?? store.t("save")) { onSave?() }
-                        .font(.system(size: 17, weight: .semibold))
-                        .disabled(onSave == nil || !saveEnabled)
-                        .opacity(onSave == nil ? 0 : 1)
-                }
-            }
         }
         .navigationViewStyle(.stack)
-        .accentColor(store.pal.accent)
+        .sheetDetents(medium: medium)
         .preferredColorScheme(store.preferredScheme)
     }
 }
@@ -239,18 +188,18 @@ struct ToastView: View {
                 HStack(spacing: 8) {
                     Image(systemName: icon(toast.kind)).foregroundColor(color(toast.kind))
                     Text(toast.text)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(store.pal.textPrimary)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundColor(.primary)
                         .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(store.pal.elevated)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(store.pal.borderStrong, lineWidth: 1))
+                .background(.regularMaterial, in: Capsule())
+                .overlay(Capsule().stroke(Color.primary.opacity(0.12), lineWidth: 1))
                 .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
+                .padding(.horizontal, 16)
+                .padding(.top, 6)
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .onTapGesture { store.toast = nil }
             }
@@ -319,29 +268,21 @@ struct IdentifiableText: Identifiable {
     let text: String
 }
 
-// MARK: - Latency badge
+// MARK: - Latency
 
-struct LatencyBadge: View {
+struct LatencyLabel: View {
     @EnvironmentObject var store: AppStore
     let value: Int? // nil = measuring, -1 = offline
-    let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 5) {
-                Circle().fill(color).frame(width: 7, height: 7)
-                Text(label).font(.system(size: 12, weight: .medium)).foregroundColor(store.pal.textSecondary)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(store.pal.input)
-            .clipShape(Capsule())
+        HStack(spacing: 5) {
+            Circle().fill(color).frame(width: 7, height: 7)
+            Text(label).font(.caption).foregroundColor(.secondary).lineLimit(1)
         }
-        .buttonStyle(.plain)
     }
 
     private var color: Color {
-        guard let v = value else { return store.pal.textTertiary }
+        guard let v = value else { return .gray }
         if v < 0 { return store.pal.danger }
         return v > 300 ? store.pal.danger : (v > 120 ? store.pal.warning : store.pal.success)
     }

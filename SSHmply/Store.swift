@@ -15,7 +15,7 @@ final class AppStore: ObservableObject {
         }
     }
     @Published var systemDark = false
-    @Published var pal = Palette.make(.system)
+    @Published var pal = Palette.make(.oled)
     @Published var toast: ToastMessage?
 
     private var loaded = false

@@ -144,7 +144,8 @@ enum TerminalFont: String, Codable, CaseIterable {
 }
 
 struct AppSettings: Codable, Equatable {
-    var appTheme: ThemeChoice = .system
+    var schema: Int = 2
+    var appTheme: ThemeChoice = .oled
     var language: Language = .es
     var enableServerMonitoring: Bool = true
     var fontFamily: TerminalFont = .sfMono
@@ -158,7 +159,12 @@ struct AppSettings: Codable, Equatable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = AppSettings()
+        schema = (try? c.decodeIfPresent(Int.self, forKey: .schema)) ?? 1
         appTheme = (try? c.decodeIfPresent(ThemeChoice.self, forKey: .appTheme)) ?? d.appTheme
+        if schema < 2 { // v2: OLED black became the default theme
+            appTheme = .oled
+            schema = 2
+        }
         language = (try? c.decodeIfPresent(Language.self, forKey: .language)) ?? d.language
         enableServerMonitoring = (try? c.decodeIfPresent(Bool.self, forKey: .enableServerMonitoring)) ?? d.enableServerMonitoring
         fontFamily = (try? c.decodeIfPresent(TerminalFont.self, forKey: .fontFamily)) ?? d.fontFamily
