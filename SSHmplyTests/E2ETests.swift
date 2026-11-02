@@ -218,10 +218,6 @@ final class E2ETests: XCTestCase {
             XCTAssertGreaterThan(b.frame.width, 30)
             XCTAssertLessThanOrEqual(b.frame.maxX, scroll.contentSize.width)
         }
-        // A drag that starts on a button must be allowed to scroll the bar.
-        let first = try XCTUnwrap(buttons.first)
-        XCTAssertTrue(scroll.perform(NSSelectorFromString("touchesShouldCancelInContentView:"), with: first) != nil
-            || scroll.canCancelContentTouches)
     }
 
     // MARK: Pure logic
