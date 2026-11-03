@@ -39,6 +39,11 @@ final class TerminalSession: NSObject, ObservableObject, Identifiable, TerminalV
     private var cols = 80
     private var rows = 24
     private var attempt = 0
+    private var finishedAttempt = -1
+    private var hadLive = false
+    private var reconnectAttempts = 0
+    private var reconnectTask: Task<Void, Never>?
+    private var keepAliveTask: Task<Void, Never>?
 
     init(host: Host, title: String, store: AppStore) {
         self.host = host
@@ -125,16 +130,76 @@ final class TerminalSession: NSObject, ObservableObject, Identifiable, TerminalV
         connect()
     }
 
+    /// Manual reconnect (button): clears the screen and, if it fails, shows the error overlay.
     func reconnect() {
+        hadLive = false
+        reconnectAttempts = 0
+        performReconnect(clearScreen: true)
+    }
+
+    private func performReconnect(clearScreen: Bool) {
+        reconnectTask?.cancel()
+        reconnectTask = nil
         runTask?.cancel()
         statsTask?.cancel()
+        keepAliveTask?.cancel()
         let old = client
         client = nil
         Task { try? await old?.close() }
         userClosed = false
         attempt += 1
-        terminalView.feed(text: "\u{1b}c")
+        if clearScreen { terminalView.feed(text: "\u{1b}c") }
         connect()
+    }
+
+    /// The connection dropped after having worked: keep the terminal contents and retry with a short backoff.
+    private func scheduleAutoReconnect() {
+        reconnectAttempts += 1
+        phase = .connecting
+        if reconnectAttempts == 1 {
+            terminalView.feed(text: "\r\n\u{1b}[33m\(store.t("connectionLost"))\u{1b}[0m\r\n")
+        }
+        let delay = min(Double(reconnectAttempts) * 1.5, 10)
+        reconnectTask?.cancel()
+        reconnectTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard !Task.isCancelled, let self, !self.userClosed else { return }
+            self.reconnectTask = nil
+            self.performReconnect(clearScreen: false)
+        }
+    }
+
+    /// Called when the app returns to the foreground: detect a dead socket immediately and reconnect now.
+    func resumeCheck() {
+        guard !userClosed else { return }
+        if phase == .live {
+            if client?.isConnected != true { finish(attempt: attempt, error: nil) }
+        } else if phase == .connecting, reconnectTask != nil {
+            reconnectTask?.cancel()
+            reconnectTask = nil
+            performReconnect(clearScreen: false)
+        }
+    }
+
+    /// Test hook: kills the TCP connection as if the network had dropped.
+    func debugDropConnection() {
+        let c = client
+        Task { try? await c?.close() }
+    }
+
+    private func startKeepAlive() {
+        keepAliveTask?.cancel()
+        keepAliveTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 20_000_000_000)
+                guard let self, let client = self.client, !Task.isCancelled else { return }
+                if !client.isConnected {
+                    self.finish(attempt: self.attempt, error: nil)
+                    return
+                }
+                _ = try? await client.executeCommand("true", maxResponseSize: 256)
+            }
+        }
     }
 
     private func connect() {
@@ -177,7 +242,10 @@ final class TerminalSession: NSObject, ObservableObject, Identifiable, TerminalV
             try await client.withPTY(request) { inbound, outbound in
                 self.writer = outbound
                 self.phase = .live
+                self.hadLive = true
+                self.reconnectAttempts = 0
                 self.startStats()
+                self.startKeepAlive()
                 let pump = Task {
                     for await chunk in input {
                         try? await outbound.write(chunk)
@@ -199,14 +267,20 @@ final class TerminalSession: NSObject, ObservableObject, Identifiable, TerminalV
     }
 
     private func finish(attempt myAttempt: Int, error: Error?) {
-        guard myAttempt == attempt, phase != .ended else { return }
+        guard myAttempt == attempt, finishedAttempt != myAttempt, phase != .ended else { return }
+        finishedAttempt = myAttempt
         statsTask?.cancel()
+        keepAliveTask?.cancel()
         stats = nil
         writer = nil
         inputCont?.finish()
         inputCont = nil
         if userClosed {
             phase = .ended
+            return
+        }
+        if hadLive, store.settings.autoReconnect, reconnectAttempts < 40 {
+            scheduleAutoReconnect()
             return
         }
         if let error {
@@ -219,8 +293,10 @@ final class TerminalSession: NSObject, ObservableObject, Identifiable, TerminalV
 
     func close() {
         userClosed = true
+        reconnectTask?.cancel()
         runTask?.cancel()
         statsTask?.cancel()
+        keepAliveTask?.cancel()
         inputCont?.finish()
         let c = client
         client = nil

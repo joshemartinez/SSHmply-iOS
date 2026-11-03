@@ -53,6 +53,16 @@ final class SFTPSession: ObservableObject, Identifiable {
         }
     }
 
+    /// Foreground check: if the socket died while the app was suspended, reconnect right away.
+    func resumeCheck() {
+        guard phase == .ready, client?.isConnected != true else { return }
+        let keep = path
+        Task {
+            await connect()
+            if phase == .ready, keep != "/" { await list(keep) }
+        }
+    }
+
     func disconnect() {
         for (_, cancel) in tasks { cancel() }
         tasks.removeAll()

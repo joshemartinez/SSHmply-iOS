@@ -10,7 +10,9 @@ struct SessionRef: Identifiable, Equatable {
 /// Keeps every open SSH / SFTP session alive while the user navigates around the app.
 @MainActor
 final class SessionManager: ObservableObject {
-    @Published private(set) var refs: [SessionRef] = []
+    @Published private(set) var refs: [SessionRef] = [] {
+        didSet { updateKeeper() }
+    }
     @Published var activeId: String?
     @Published var presented = false
     @Published var snippetsRequested = false
@@ -92,7 +94,19 @@ final class SessionManager: ObservableObject {
         store.showToast(store.t("snippetSent", ["name": target.host.name]), .success)
     }
 
+    /// Background keep-alive is only needed while something is open.
+    func updateKeeper() {
+        BackgroundKeeper.shared.setActive(!refs.isEmpty && store.settings.keepAliveInBackground)
+    }
+
+    /// App returned to the foreground: reconnect whatever died while iOS had us suspended.
+    func resumeAll() {
+        for s in ssh.values { s.resumeCheck() }
+        for s in sftp.values { s.resumeCheck() }
+    }
+
     func applySettingsToTerminals() {
+        updateKeeper()
         for s in ssh.values {
             s.applySettings()
             s.refreshMonitoringSetting()

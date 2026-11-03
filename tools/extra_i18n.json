@@ -32,7 +32,13 @@
   "keyPastePrivate": "Private key",
   "pasteFromClipboard": "Paste from clipboard",
   "monitoringDescIos": "Shows CPU, RAM and disk of the server in the terminal bar (Linux servers only).",
-  "showKeyboard": "Show keyboard"
+  "showKeyboard": "Show keyboard",
+  "settingsConnections": "Connections",
+  "keepAliveTitle": "Keep alive in background",
+  "keepAliveDesc": "Plays inaudible audio while sessions are open so iOS does not suspend the app when you lock the phone or switch apps. Uses a little more battery.",
+  "autoReconnectTitle": "Reconnect automatically",
+  "autoReconnectDesc": "If a connection drops, SSHmply reconnects on its own. The remote shell restarts, so run tmux or screen on the server to keep your programs running.",
+  "connectionLost": "Connection lost. Reconnecting…"
  },
  "es": {
   "hostKeyChanged": "La huella de {host} ha cambiado. Conexión bloqueada por seguridad (posible ataque de intermediario). Si reinstalaste el servidor, edítalo y olvida su huella guardada.",
@@ -67,7 +73,13 @@
   "keyPastePrivate": "Llave privada",
   "pasteFromClipboard": "Pegar del portapapeles",
   "monitoringDescIos": "Muestra CPU, RAM y disco del servidor en la barra de la terminal (solo servidores Linux).",
-  "showKeyboard": "Mostrar teclado"
+  "showKeyboard": "Mostrar teclado",
+  "settingsConnections": "Conexiones",
+  "keepAliveTitle": "Mantener activa en segundo plano",
+  "keepAliveDesc": "Reproduce audio inaudible mientras haya sesiones abiertas para que iOS no suspenda la app al bloquear el celular o cambiar de app. Gasta un poco más de batería.",
+  "autoReconnectTitle": "Reconectar automáticamente",
+  "autoReconnectDesc": "Si una conexión se cae, SSHmply se reconecta sola. La shell remota se reinicia, así que usa tmux o screen en el servidor para no perder tus programas.",
+  "connectionLost": "Conexión perdida. Reconectando…"
  },
  "zh": {
   "hostKeyChanged": "{host} 的指纹已更改。出于安全考虑已阻止连接（可能存在中间人攻击）。如果服务器已重装，请编辑服务器并清除已保存的指纹。",
@@ -102,7 +114,13 @@
   "keyPastePrivate": "私钥",
   "pasteFromClipboard": "从剪贴板粘贴",
   "monitoringDescIos": "在终端栏显示服务器的 CPU、内存和磁盘（仅限 Linux 服务器）。",
-  "showKeyboard": "显示键盘"
+  "showKeyboard": "显示键盘",
+  "settingsConnections": "连接",
+  "keepAliveTitle": "后台保持连接",
+  "keepAliveDesc": "会话打开期间播放无声音频，这样锁屏或切换应用时 iOS 不会挂起应用。会多耗一点电。",
+  "autoReconnectTitle": "自动重新连接",
+  "autoReconnectDesc": "连接断开时 SSHmply 会自动重连。远程 shell 会重新启动，请在服务器上使用 tmux 或 screen 保留正在运行的程序。",
+  "connectionLost": "连接已断开。正在重新连接…"
  },
  "ja": {
   "hostKeyChanged": "{host} のフィンガープリントが変更されました。安全のため接続をブロックしました（中間者攻撃の可能性）。サーバーを再インストールした場合は、サーバーを編集して保存済みのフィンガープリントを削除してください。",
@@ -137,6 +155,12 @@
   "keyPastePrivate": "秘密鍵",
   "pasteFromClipboard": "クリップボードから貼り付け",
   "monitoringDescIos": "ターミナルバーにサーバーの CPU・メモリ・ディスクを表示します（Linux サーバーのみ）。",
-  "showKeyboard": "キーボードを表示"
+  "showKeyboard": "キーボードを表示",
+  "settingsConnections": "接続",
+  "keepAliveTitle": "バックグラウンドで維持",
+  "keepAliveDesc": "セッションが開いている間、無音の音声を再生し、画面ロックやアプリ切り替え時に iOS がアプリを停止しないようにします。バッテリーを少し多く使います。",
+  "autoReconnectTitle": "自動で再接続",
+  "autoReconnectDesc": "接続が切れると SSHmply が自動的に再接続します。リモートのシェルは再起動されるため、プログラムを維持するにはサーバーで tmux か screen を使ってください。",
+  "connectionLost": "接続が切れました。再接続しています…"
  }
 }

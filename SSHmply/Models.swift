@@ -153,6 +153,8 @@ struct AppSettings: Codable, Equatable {
     var cursorStyle: CursorShape = .bar
     var cursorBlink: Bool = true
     var scrollback: Int = 5000
+    var keepAliveInBackground: Bool = true
+    var autoReconnect: Bool = true
 
     init() {}
 
@@ -172,6 +174,8 @@ struct AppSettings: Codable, Equatable {
         cursorStyle = (try? c.decodeIfPresent(CursorShape.self, forKey: .cursorStyle)) ?? d.cursorStyle
         cursorBlink = (try? c.decodeIfPresent(Bool.self, forKey: .cursorBlink)) ?? d.cursorBlink
         scrollback = (try? c.decodeIfPresent(Int.self, forKey: .scrollback)) ?? d.scrollback
+        keepAliveInBackground = (try? c.decodeIfPresent(Bool.self, forKey: .keepAliveInBackground)) ?? d.keepAliveInBackground
+        autoReconnect = (try? c.decodeIfPresent(Bool.self, forKey: .autoReconnect)) ?? d.autoReconnect
     }
 }
 

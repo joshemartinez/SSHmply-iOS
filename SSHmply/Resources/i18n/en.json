@@ -253,5 +253,11 @@
  "keyPastePrivate": "Private key",
  "pasteFromClipboard": "Paste from clipboard",
  "monitoringDescIos": "Shows CPU, RAM and disk of the server in the terminal bar (Linux servers only).",
- "showKeyboard": "Show keyboard"
+ "showKeyboard": "Show keyboard",
+ "settingsConnections": "Connections",
+ "keepAliveTitle": "Keep alive in background",
+ "keepAliveDesc": "Plays inaudible audio while sessions are open so iOS does not suspend the app when you lock the phone or switch apps. Uses a little more battery.",
+ "autoReconnectTitle": "Reconnect automatically",
+ "autoReconnectDesc": "If a connection drops, SSHmply reconnects on its own. The remote shell restarts, so run tmux or screen on the server to keep your programs running.",
+ "connectionLost": "Connection lost. Reconnecting…"
 }

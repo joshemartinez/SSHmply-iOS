@@ -33,6 +33,7 @@ struct RootView: View {
     @EnvironmentObject var store: AppStore
     @EnvironmentObject var sessions: SessionManager
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
     @State private var tab: MainTab = .hosts
     @State private var editor: HostEditorTarget?
 
@@ -79,5 +80,16 @@ struct RootView: View {
             sessions.applyThemeToTerminals()
         }
         .onChange(of: store.settings) { _ in sessions.applySettingsToTerminals() }
+        .onChange(of: scenePhase) { phase in
+            switch phase {
+            case .background:
+                BackgroundKeeper.shared.beginTask()
+            case .active:
+                BackgroundKeeper.shared.endTask()
+                sessions.resumeAll()
+            default:
+                break
+            }
+        }
     }
 }

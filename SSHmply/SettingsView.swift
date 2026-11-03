@@ -49,6 +49,12 @@ struct SettingsView: View {
                 }
                 .themedRow()
 
+                Section(header: Text(store.t("settingsConnections")), footer: Text(store.t("keepAliveDesc") + "\n\n" + store.t("autoReconnectDesc"))) {
+                    Toggle(store.t("keepAliveTitle"), isOn: $store.settings.keepAliveInBackground)
+                    Toggle(store.t("autoReconnectTitle"), isOn: $store.settings.autoReconnect)
+                }
+                .themedRow()
+
                 Section(header: Text(store.t("settingsMonitoring")), footer: Text(store.t("monitoringDescIos"))) {
                     Toggle(store.t("monitoringTitle"), isOn: $store.settings.enableServerMonitoring)
                 }

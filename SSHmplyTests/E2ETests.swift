@@ -1,4 +1,5 @@
 import XCTest
+import AVFoundation
 @testable import SSHmply
 
 /// End-to-end tests against a throw-away local sshd started by the CI workflow
@@ -195,6 +196,38 @@ final class E2ETests: XCTestCase {
         try await sftp.remove(dir)
         XCTAssertFalse(sftp.entries.contains { $0.name == dirName })
         sftp.disconnect()
+    }
+
+    // MARK: Persistence
+
+    func testSessionReconnectsAutomaticallyAfterDrop() async throws {
+        let store = makeStore()
+        store.settings.autoReconnect = true
+        let h = try host(store: store, keyFile: "/tmp/e2e_key.txt", name: "persist")
+        let session = TerminalSession(host: h, title: "persist", store: store)
+        session.startIfNeeded()
+        try await waitUntil(timeout: 20) { session.phase == .live }
+        session.run(command: "echo before-drop-$((2+3))")
+        try await waitUntil(timeout: 15) { self.bufferText(session).contains("before-drop-5") }
+
+        session.debugDropConnection()
+        try await waitUntil(timeout: 15) { session.phase != .live }
+        XCTAssertNotEqual(session.phase, .ended, "a dropped connection must reconnect, not end the session")
+        try await waitUntil(timeout: 30) { session.phase == .live }
+
+        // The scrollback survives and the new shell works.
+        XCTAssertTrue(bufferText(session).contains("before-drop-5"))
+        session.run(command: "echo after-drop-$((4+4))")
+        try await waitUntil(timeout: 15) { self.bufferText(session).contains("after-drop-8") }
+        session.close()
+    }
+
+    func testBackgroundKeeperProducesValidSilentAudio() throws {
+        let wav = BackgroundKeeper.silentWav(seconds: 1, sampleRate: 8000)
+        XCTAssertEqual(wav.count, 44 + 16000)
+        XCTAssertEqual(String(decoding: wav.prefix(4), as: UTF8.self), "RIFF")
+        XCTAssertTrue(wav.dropFirst(44).allSatisfy { $0 == 0 })
+        _ = try AVAudioPlayer(data: wav) // must be playable
     }
 
     // MARK: Key bar

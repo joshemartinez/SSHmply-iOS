@@ -253,5 +253,11 @@
  "keyPastePrivate": "秘密鍵",
  "pasteFromClipboard": "クリップボードから貼り付け",
  "monitoringDescIos": "ターミナルバーにサーバーの CPU・メモリ・ディスクを表示します（Linux サーバーのみ）。",
- "showKeyboard": "キーボードを表示"
+ "showKeyboard": "キーボードを表示",
+ "settingsConnections": "接続",
+ "keepAliveTitle": "バックグラウンドで維持",
+ "keepAliveDesc": "セッションが開いている間、無音の音声を再生し、画面ロックやアプリ切り替え時に iOS がアプリを停止しないようにします。バッテリーを少し多く使います。",
+ "autoReconnectTitle": "自動で再接続",
+ "autoReconnectDesc": "接続が切れると SSHmply が自動的に再接続します。リモートのシェルは再起動されるため、プログラムを維持するにはサーバーで tmux か screen を使ってください。",
+ "connectionLost": "接続が切れました。再接続しています…"
 }

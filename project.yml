@@ -77,6 +77,8 @@ targets:
         NSLocalNetworkUsageDescription: SSHmply connects to servers in your local network over SSH and SFTP.
         ITSAppUsesNonExemptEncryption: false
         UIFileSharingEnabled: true
+        UIBackgroundModes:
+          - audio
         LSSupportsOpeningDocumentsInPlace: true
     settings:
       base:

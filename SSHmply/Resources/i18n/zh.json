@@ -253,5 +253,11 @@
  "keyPastePrivate": "私钥",
  "pasteFromClipboard": "从剪贴板粘贴",
  "monitoringDescIos": "在终端栏显示服务器的 CPU、内存和磁盘（仅限 Linux 服务器）。",
- "showKeyboard": "显示键盘"
+ "showKeyboard": "显示键盘",
+ "settingsConnections": "连接",
+ "keepAliveTitle": "后台保持连接",
+ "keepAliveDesc": "会话打开期间播放无声音频，这样锁屏或切换应用时 iOS 不会挂起应用。会多耗一点电。",
+ "autoReconnectTitle": "自动重新连接",
+ "autoReconnectDesc": "连接断开时 SSHmply 会自动重连。远程 shell 会重新启动，请在服务器上使用 tmux 或 screen 保留正在运行的程序。",
+ "connectionLost": "连接已断开。正在重新连接…"
 }
